@@ -279,7 +279,7 @@ python run_pipeline.py --verify out/proof-6a2513aa2c65.json --tamper
 
 ## 🎬 Demo
 
-> 📹 **Screen recording:** _link to be added_ <!-- TODO:VALUE -->
+> 📹 **Screen recording:** _paste the link here before submitting_
 
 What the recording shows, in order:
 
