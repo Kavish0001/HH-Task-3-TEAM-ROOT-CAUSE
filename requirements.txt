@@ -1,0 +1,18 @@
+# facechain — Face Identification and Blockchain Verification Pipeline
+# Python 3.10+   ·   pip install -r requirements.txt
+
+# --- Stage 1: face detection + recognition (YuNet / SFace ONNX via OpenCV DNN) ---
+opencv-python>=4.9
+numpy>=1.24
+Pillow>=10.0
+
+# --- Stage 2: live web / social search + candidate image download ---
+requests>=2.31
+ddgs>=9.0
+
+# --- Stage 3: EVM anchoring and re-verification ---
+web3>=6.15
+eth-account>=0.11
+
+# --- CLI output ---
+rich>=13.0

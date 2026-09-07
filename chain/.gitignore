@@ -1,0 +1,7 @@
+node_modules/
+artifacts/
+cache/
+.env
+
+# deployment.json is intentionally NOT ignored - it is the proof artifact.
+!deployment.json

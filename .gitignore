@@ -1,0 +1,57 @@
+# ---- Reference material (not tracked) ----
+Archive/
+archive/
+.claude/
+
+# ---- Python ----
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+env/
+*.egg-info/
+.eggs/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# ---- Node / Hardhat ----
+node_modules/
+.pnp
+.pnp.js
+.yarn/
+artifacts/
+cache/
+typechain-types/
+
+# deployment.json is a proof artifact — it stays in the repo.
+!chain/deployment.json
+
+# ---- Environment ----
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# ---- Generated run artifacts ----
+out/
+coverage/
+
+# ---- Model weights (downloaded on first run, never committed) ----
+models/*.onnx
+!models/.gitkeep
+
+# ---- Logs ----
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# ---- Editor / OS ----
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+desktop.ini
