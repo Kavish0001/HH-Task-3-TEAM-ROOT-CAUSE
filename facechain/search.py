@@ -51,6 +51,20 @@ ALL_PROVIDERS: List[str] = ["reddit", "mastodon", "ddg_images", "wikimedia"]
 SOCIAL_PLATFORMS = {"mastodon", "reddit"}
 SOCIAL_PROVIDERS = {"reddit", "mastodon"}
 
+# Fediverse bridges republish other sites into the network. The posts are real
+# federated statuses, but their canonical URL points back at the mirrored
+# article, so a native permalink is the better headline result when we have one.
+BRIDGE_HOSTS = ("fed.brid.gy", "brid.gy", "bird.makeup", "rss-parrot.net")
+
+# How many candidates to keep examining while holding only a bridged social hit,
+# hoping for a native permalink, before settling for the bridge.
+BRIDGED_PATIENCE = 26
+
+
+def _is_bridged(post_url: str) -> bool:
+    """True if a post URL belongs to a fediverse bridge rather than an instance."""
+    return any(host in (post_url or "").lower() for host in BRIDGE_HOSTS)
+
 # Mastodon instances whose public (no-auth) API we poll for tagged posts.
 MASTODON_INSTANCES: List[str] = [
     "https://mastodon.social",
@@ -824,6 +838,7 @@ def find_matching_post(
     examined = 0
     have_match = False
     have_social_match = False
+    have_native_social = False
     # If no social provider ran there is nothing to hold out for.
     social_in_play = bool(SOCIAL_PROVIDERS & set(working))
 
@@ -895,11 +910,17 @@ def find_matching_post(
                     have_match = True
                     if match.platform in SOCIAL_PLATFORMS:
                         have_social_match = True
+                        if not _is_bridged(match.post_url):
+                            have_native_social = True
 
             # Fast demo, but only after real work: >= 12 candidates examined and
             # a match in hand. Never stop on a non-social match while a social
             # provider is still in play - the deliverable is a social-media post.
-            enough = have_social_match or (have_match and not social_in_play)
+            # A bridged social hit counts, but is worth spending a few more
+            # candidates on in case a native permalink turns up.
+            enough = have_native_social or (have_match and not social_in_play)
+            if not enough and have_social_match and examined >= BRIDGED_PATIENCE:
+                enough = True  # settle for the bridge rather than search forever
             if enough and examined >= 12:
                 report.notes.append(
                     f"early stop: match found after examining {examined} candidates"
@@ -915,6 +936,17 @@ def find_matching_post(
     ][:5]
     # best_match prefers a social-media post; `matches` keeps the full ranking.
     social = [m for m in report.matches if m.platform in SOCIAL_PLATFORMS]
+    # Among social hits, prefer a native permalink over a bridge. A brid.gy URL
+    # is a genuine federated post, but it resolves to the news article it
+    # mirrors, so it reads as a news link rather than as a social one.
+    native = [m for m in social if not _is_bridged(m.post_url)]
+    if native and native[0] is not social[0]:
+        report.notes.append(
+            f"best match: preferred the native social permalink "
+            f"({native[0].platform}, {native[0].similarity:.4f}) over a "
+            f"bridged post scoring {social[0].similarity:.4f}"
+        )
+        social = native + [m for m in social if m not in native]
     if social:
         report.best_match = social[0]
         top = report.matches[0]
