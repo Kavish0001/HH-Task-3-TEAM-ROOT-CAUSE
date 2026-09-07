@@ -70,6 +70,30 @@ _RUNS_LOCK = threading.Lock()
 _CAND_RE = re.compile(r"^\[(\d+)/(\d+)\]\s+(\S+)\s+sim=([0-9.]+)\s*(MATCH)?\s*$")
 
 
+def _write_report(run_id: str, payload: Dict[str, Any],
+                  record_id: str = "") -> Optional[Path]:
+    """Render the written conclusion for a UI run and remember where it went.
+
+    Same generator the CLI uses, so a run driven from the browser produces the
+    identical document. A failure here must never sink an otherwise good run.
+    """
+    try:
+        from facechain.report_pdf import build_conclusion
+
+        stem = record_id[2:14] if record_id else run_id
+        path = config.OUT_DIR / ("conclusion-" + stem + ".pdf")
+        build_conclusion(payload, path)
+        with _RUNS_LOCK:
+            run = _RUNS.get(run_id)
+            if run is not None:
+                run["report_path"] = str(path)
+        return path
+    except Exception as exc:  # noqa: BLE001 - a missing PDF is not a failed run
+        print("[report] could not write conclusion PDF: %s: %s"
+              % (type(exc).__name__, exc))
+        return None
+
+
 class Emitter:
     """Append-only event log for one run.
 
@@ -213,8 +237,15 @@ def _pipeline(run_id: str, image_path: Path, hint: str, backend: str,
                     message="no post cleared the identity threshold - "
                             "try a different hint, more candidates, "
                             "or a lower threshold")
+            pdf = _write_report(run_id, {
+                "status": "no-match",
+                "elapsed_seconds": round(time.time() - started, 2),
+                "face": profile.as_dict(),
+                "search": search.as_dict(),
+            })
             em.emit("done", status="no-match",
-                    elapsed=round(time.time() - started, 2))
+                    elapsed=round(time.time() - started, 2),
+                    report_url=("/report/" + run_id) if pdf else "")
             return
         em.emit("stage", stage="search", status="ok")
 
@@ -259,8 +290,25 @@ def _pipeline(run_id: str, image_path: Path, hint: str, backend: str,
         except Exception:  # noqa: BLE001
             proof_path = None
 
+        pdf = _write_report(run_id, {
+            "status": "ok",
+            "elapsed_seconds": round(time.time() - started, 2),
+            "face": profile.as_dict(),
+            "search": search.as_dict(),
+            "record": record,
+            "chain": {
+                "receipt": receipt.as_dict(),
+                "verification": ok.as_dict(),
+                "tamper_check": bad.as_dict(),
+                "tamper_detected": bool(not bad.verified),
+            },
+        }, rid)
+        if pdf:
+            em.log("conclusion report written: " + pdf.name)
+
         em.emit("done", status="ok", elapsed=round(time.time() - started, 2),
                 proof_path=str(proof_path) if proof_path else "",
+                report_url=("/report/" + run_id) if pdf else "",
                 verified=bool(ok.verified),
                 tamper_detected=bool(not bad.verified))
 
@@ -355,6 +403,17 @@ def health():
         "max_candidates": config.MAX_CANDIDATES,
         "busy": bool(_active_run()),
     })
+
+
+@app.route("/report/<run_id>")
+def report(run_id: str):
+    """Download the written conclusion for a finished run."""
+    run = _RUNS.get(run_id)
+    path = Path(run["report_path"]) if run and run.get("report_path") else None
+    if path is None or not path.exists():
+        abort(404)
+    return send_file(path, mimetype="application/pdf",
+                     as_attachment=True, download_name=path.name)
 
 
 @app.route("/api/samples")

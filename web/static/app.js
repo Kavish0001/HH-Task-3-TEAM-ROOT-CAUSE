@@ -295,6 +295,17 @@
   function finish(d) {
     state.running = false;
     $("run").disabled = false;
+    // The written conclusion is produced for every finished run, including a
+    // no-match one - the negative result is worth reading too.
+    var rep = $("report");
+    if (rep) {
+      if (d && d.report_url) {
+        rep.href = d.report_url;
+        rep.hidden = false;
+      } else {
+        rep.hidden = true;
+      }
+    }
     if (state.es) { state.es.close(); state.es = null; }
     ["st-face", "st-search", "st-chain"].forEach(function (i) {
       var e = $(i);
