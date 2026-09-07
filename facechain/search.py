@@ -24,6 +24,7 @@ import hashlib
 import html
 import json
 import random
+import re
 import sys
 import threading
 import time
@@ -46,6 +47,16 @@ ALL_PROVIDERS: List[str] = ["reddit", "ddg_images", "wikimedia"]
 # Subreddits that reliably carry people photos; searched in addition to
 # the site-wide /search.json endpoint.
 REDDIT_SUBREDDITS: List[str] = ["pics", "photographs", "portraits"]
+
+# Reddit blocks its public JSON API from many networks (403 + interstitial).
+# When that happens we fall back to a public redlib front-end, which serves the
+# same posts as HTML; the permalinks and i.redd.it image URLs it exposes are
+# genuine reddit URLs, so the evidence trail stays real.
+REDDIT_MIRRORS: List[str] = [
+    "https://safereddit.com",
+    "https://redlib.catsarch.com",
+    "https://redlib.freedit.eu",
+]
 
 IMAGE_EXTS = (".jpg", ".jpeg", ".png", ".webp", ".bmp")
 MAX_IMAGE_BYTES = 8 * 1024 * 1024
@@ -261,38 +272,131 @@ def _parse_reddit_listing(payload: Dict[str, Any], query: str) -> List[Candidate
     return out
 
 
-def _search_reddit(query: str, limit: int = 25) -> List[Candidate]:
-    """Reddit's free public JSON search API (no key, custom UA required)."""
-    results: List[Candidate] = []
-    endpoints: List[tuple[str, Dict[str, Any]]] = [
-        (
-            "https://www.reddit.com/search.json",
-            {"q": query, "limit": limit, "type": "link", "raw_json": 1},
-        )
-    ]
-    for sub in REDDIT_SUBREDDITS:
-        endpoints.append(
-            (
-                f"https://www.reddit.com/r/{sub}/search.json",
-                {
-                    "q": query,
-                    "limit": limit,
-                    "restrict_sr": 1,
-                    "type": "link",
-                    "raw_json": 1,
-                    "sort": "relevance",
+_REDDIT_JSON_BLOCKED = False
+
+_POST_SPLIT = re.compile(r'<div class="post" id="')
+_RE_PERMALINK = re.compile(r'href="(/r/[A-Za-z0-9_]+/comments/[a-z0-9]+/[^"?#]*)"')
+_RE_AUTHOR = re.compile(r'class="post_author[^"]*" href="/u/([A-Za-z0-9_\-]+)"')
+_RE_CREATED = re.compile(r'<span class="created" title="([^"]+)"')
+_RE_TITLE = re.compile(
+    r'<a href="/r/[A-Za-z0-9_]+/comments/[a-z0-9]+/[^"]*">([^<]{2,300})</a>'
+)
+_RE_PREVIEW = re.compile(r'/(?:preview/pre|img)/([a-z0-9]{6,32}\.(?:jpg|jpeg|png|webp))')
+_RE_SUB = re.compile(r'href="/r/([A-Za-z0-9_]+)"')
+
+
+def _mirror_created_iso(raw: str) -> str:
+    """Redlib renders 'Aug 11 2026, 13:08:56 UTC'."""
+    try:
+        dt = datetime.strptime(raw.replace(" UTC", ""), "%b %d %Y, %H:%M:%S")
+        return dt.replace(tzinfo=timezone.utc).isoformat()
+    except Exception:  # noqa: BLE001
+        return ""
+
+
+def _parse_reddit_mirror(page: str, query: str) -> List[Candidate]:
+    """Parse a redlib listing page into candidates with real reddit URLs."""
+    out: List[Candidate] = []
+    for block in _POST_SPLIT.split(page)[1:]:
+        perm = _RE_PERMALINK.search(block)
+        img = _RE_PREVIEW.search(block)
+        if not perm or not img:
+            continue
+        title_m = _RE_TITLE.search(block)
+        author_m = _RE_AUTHOR.search(block)
+        created_m = _RE_CREATED.search(block)
+        sub_m = _RE_SUB.search(block)
+        out.append(
+            Candidate(
+                platform="reddit",
+                post_url=f"https://www.reddit.com{perm.group(1)}",
+                # Redlib proxies preview.redd.it; the same asset id is served
+                # unsigned and full-size from i.redd.it.
+                image_url=f"https://i.redd.it/{img.group(1)}",
+                title=html.unescape(title_m.group(1)).strip() if title_m else "",
+                author=author_m.group(1) if author_m else "",
+                posted_at=_mirror_created_iso(created_m.group(1)) if created_m else "",
+                query=query,
+                discovered_via="keyword-search",
+                metadata={
+                    "subreddit": sub_m.group(1) if sub_m else "",
+                    "via": "redlib-mirror",
                 },
             )
         )
+    return out
 
-    for url, params in endpoints:
-        resp = _get(url, params=params)
-        if resp is None:
-            continue
-        try:
-            results.extend(_parse_reddit_listing(resp.json(), query))
-        except (ValueError, json.JSONDecodeError):
-            continue
+
+def _search_reddit_mirror(query: str) -> List[Candidate]:
+    """Fallback path when reddit's own JSON API refuses the request."""
+    paths = [("/search", {})] + [
+        (f"/r/{sub}/search", {"restrict_sr": "on"}) for sub in REDDIT_SUBREDDITS
+    ]
+    for base in REDDIT_MIRRORS:
+        found: List[Candidate] = []
+        alive = False
+        for path, extra in paths:
+            params: Dict[str, Any] = {"q": query, "type": "link", "sort": "relevance"}
+            params.update(extra)
+            resp = _get(base + path, params=params, retries=0)
+            if resp is None:
+                continue
+            alive = True
+            found.extend(_parse_reddit_mirror(resp.text, query))
+        if alive and found:
+            return found
+    return []
+
+
+def _search_reddit(query: str, limit: int = 25) -> List[Candidate]:
+    """Reddit search: free public JSON API first, redlib mirror as fallback.
+
+    Reddit requires a descriptive User-Agent (config.USER_AGENT); on networks
+    where it 403s the JSON API outright we degrade to a public front-end rather
+    than dropping the platform.
+    """
+    global _REDDIT_JSON_BLOCKED
+    results: List[Candidate] = []
+
+    if not _REDDIT_JSON_BLOCKED:
+        endpoints: List[tuple[str, Dict[str, Any]]] = [
+            (
+                "https://www.reddit.com/search.json",
+                {"q": query, "limit": limit, "type": "link", "raw_json": 1},
+            )
+        ]
+        for sub in REDDIT_SUBREDDITS:
+            endpoints.append(
+                (
+                    f"https://www.reddit.com/r/{sub}/search.json",
+                    {
+                        "q": query,
+                        "limit": limit,
+                        "restrict_sr": 1,
+                        "type": "link",
+                        "raw_json": 1,
+                        "sort": "relevance",
+                    },
+                )
+            )
+
+        reachable = False
+        for url, params in endpoints:
+            resp = _get(url, params=params, retries=0)
+            if resp is None:
+                continue
+            reachable = True
+            try:
+                results.extend(_parse_reddit_listing(resp.json(), query))
+            except (ValueError, json.JSONDecodeError):
+                continue
+        if not reachable:
+            # Latch the block so later queries skip four dead round-trips.
+            _REDDIT_JSON_BLOCKED = True
+            _log_debug("reddit JSON API blocked; using mirror fallback")
+
+    if not results:
+        results = _search_reddit_mirror(query)
     return results
 
 

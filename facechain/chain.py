@@ -325,15 +325,16 @@ class ChainClient:
                 raise
             proof = existing
 
+        block_hash = _normalise_hex(proof.get("block_hash", ""))
         return AnchorReceipt(
             backend=self._backend,
             chain_id=self._chain_id,
             contract_address=self._contract_address,
             record_id=rid,
             record_hash=rhash,
-            tx_hash=proof.get("block_hash", ""),
+            tx_hash=block_hash,
             block_number=int(proof.get("block_number", 0)),
-            block_hash=proof.get("block_hash", ""),
+            block_hash=block_hash,
             anchored_at=proof.get("anchored_at", _utc_iso()),
             submitter=proof.get("submitter", self._account),
             gas_used=0,

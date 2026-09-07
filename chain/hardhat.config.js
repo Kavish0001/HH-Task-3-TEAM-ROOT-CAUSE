@@ -1,4 +1,5 @@
 require("@nomicfoundation/hardhat-toolbox");
+const path = require("path");
 
 /**
  * Hardhat config for the facechain FaceProofRegistry.
@@ -41,11 +42,15 @@ module.exports = {
       optimizer: { enabled: true, runs: 200 },
     },
   },
+  // `root` is lifted to the repository root because Hardhat 2 refuses to
+  // compile sources that sit outside the project root (HH1007); the sources
+  // themselves stay in ../contracts and all build output stays in chain/.
   paths: {
-    sources: "../contracts",
-    tests: "./test",
-    cache: "./cache",
-    artifacts: "./artifacts",
+    root: path.resolve(__dirname, ".."),
+    sources: path.resolve(__dirname, "../contracts"),
+    tests: path.resolve(__dirname, "test"),
+    cache: path.resolve(__dirname, "cache"),
+    artifacts: path.resolve(__dirname, "artifacts"),
   },
   networks,
 };

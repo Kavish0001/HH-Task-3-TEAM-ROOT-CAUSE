@@ -6,22 +6,39 @@ search is live, so the input has to be a face the open web can actually find. No
 private individuals are used anywhere in this project.
 
 Every file was fetched from **Wikimedia Commons** through the MediaWiki
-`action=query&generator=search` API (namespace 6, `iiurlwidth=800`), with a descriptive
+`action=query` API (namespace 6, `iiprop=url|extmetadata`), with a descriptive
 `User-Agent` — Commons blocks the default `python-requests` agent. All three verified as
 real JPEGs (`FF D8 FF` magic bytes).
 
 | File | Subject | Bytes | Commons page | Author / credit | Licence |
 | --- | --- | --- | --- | --- | --- |
 | `elon-musk.jpg` | Elon Musk | 242,053 | [File:Elon Musk 2015.jpg](https://commons.wikimedia.org/wiki/File:Elon_Musk_2015.jpg) | Steve Jurvetson ([source](https://www.flickr.com/photos/jurvetson/18659265152/)) | [CC BY 2.0](https://creativecommons.org/licenses/by/2.0) |
-| `sundar-pichai.jpg` | Sundar Pichai | 48,449 | [File:Jokowi and Sundar Pichai Googleplex.jpg](https://commons.wikimedia.org/wiki/File:Jokowi_and_Sundar_Pichai_Googleplex.jpg) | Consulate General of Indonesia in San Francisco | Public domain |
+| `sundar-pichai.jpg` | Sundar Pichai | 382,460 | [File:Pichai-Jourová meeting (2023) (cropped).jpg](https://commons.wikimedia.org/wiki/File:Pichai-Jourov%C3%A1_meeting_(2023)_(cropped).jpg) | Lukasz Kobus (European Commission) | [CC BY 4.0](https://creativecommons.org/licenses/by/4.0) |
 | `lionel-messi.jpg` | Lionel Messi | 216,906 | [File:Lionel Messi in 2018.jpg](https://commons.wikimedia.org/wiki/File:Lionel_Messi_in_2018.jpg) | Кирилл Венедиктов ([soccer.ru](https://www.soccer.ru/galery/1055457/photo/733494)) | [CC BY-SA 3.0](https://creativecommons.org/licenses/by-sa/3.0) |
 
 ## Attribution
 
-`elon-musk.jpg` and `lionel-messi.jpg` are CC-BY / CC-BY-SA and **require attribution on
-reuse**. The rows above carry the author, the source link and the licence; keep them with
-the images if you copy them out of this repository. `sundar-pichai.jpg` is public domain
-and carries no attribution requirement, though the credit is recorded anyway.
+All three files are CC-BY / CC-BY-SA and **require attribution on reuse**. The rows above
+carry the author, the source link and the licence; keep them with the images if you copy
+them out of this repository.
+
+## Detector check
+
+Each file was chosen to be a **single-subject portrait with a large primary face**, and
+verified by running the real stage 1 detector over it:
+
+```
+$ python -m facechain.face samples/<file>
+
+elon-musk.jpg:     faces=1  conf=0.852  bbox=[282, 233, 478, 622]
+lionel-messi.jpg:  faces=1  conf=0.923  bbox=[103,  78, 181, 265]
+sundar-pichai.jpg: faces=1  conf=0.857  bbox=[178, 315, 443, 563]
+```
+
+`faces=1` is the point. A group photo makes the pipeline encode whichever face happens to
+be largest, and a small crop of the wrong person is a silently wrong demo rather than a
+loud failure. Candidates with more than a couple of faces, or a primary bounding box
+narrower than roughly 150 px, were rejected during selection.
 
 Wikimedia Commons is one of the search providers in stage 2. That is not a shortcut — the
 input file is never passed to the search layer, only its 128-d embedding is, and any
