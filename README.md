@@ -74,6 +74,67 @@ Nothing personal ever reaches the chain. The contract stores **hashes only** —
 
 ---
 
+## Screens
+
+<div align="center">
+
+### The landing page
+
+<img src="assets/screenshots/01-landing.jpg" alt="FaceChain landing page" width="100%"/>
+
+<em>Brushed steel after dark, with the pipeline drawn as a node flow on a dotted grid. The four objects drifting behind it are real GLB models, desaturated and held back so they never compete with the copy.</em>
+
+<br/><br/>
+
+### The console, mid-run
+
+<img src="assets/screenshots/04-console-search.jpg" alt="Pipeline console during the search stage" width="100%"/>
+
+<em>Candidates stream in as they are downloaded and re-encoded. The bar is the similarity; cyan means it cleared 0.363, grey means it did not.</em>
+
+<br/><br/>
+
+### The console, finished
+
+<img src="assets/screenshots/05-console-done.jpg" alt="Completed pipeline run showing all three stages" width="100%"/>
+
+<em>All three stages of a real run: the detected face and its 128-d fingerprint, 120 candidates harvested with 24 over threshold, and the record anchored in block 30 &mdash; verified, then tamper-rejected.</em>
+
+</div>
+
+<br/>
+
+<table>
+<tr>
+<td width="50%" valign="top">
+
+**The evidence, on the landing page**
+
+<img src="assets/screenshots/02b-landing-proof.jpg" alt="Evidence and negative control figures"/>
+
+The negative control is the number that matters: the wrong face scores **0.185** against a 0.363 threshold.
+
+</td>
+<td width="50%" valign="top">
+
+**Verified, then tampered**
+
+<img src="assets/screenshots/07-chain-verdicts.jpg" alt="Stage 3 verdict rows"/>
+
+Recompute the digest and the chain agrees. Flip one field of the record and it does not.
+
+</td>
+</tr>
+</table>
+
+<div align="center">
+
+<sub>Every figure in these screenshots came out of a live run &mdash; none of them were typed in by hand.</sub>
+
+</div>
+
+---
+
 ## Pipeline
 
 ### Stage 1 — Face identification
