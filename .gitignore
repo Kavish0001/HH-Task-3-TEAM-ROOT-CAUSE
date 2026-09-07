@@ -55,3 +55,6 @@ pnpm-debug.log*
 .DS_Store
 Thumbs.db
 desktop.ini
+
+# ---- Personal working notes (not part of the deliverable) ----
+DEMO_SCRIPT.md
