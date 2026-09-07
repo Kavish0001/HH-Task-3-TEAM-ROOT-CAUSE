@@ -190,14 +190,18 @@ body {
 /* =========================================================================
    Main
    ========================================================================= */
+/* The hero screen. `flex: none` plus an explicit min-height is what lets the
+   page grow below without the first screen collapsing: main still fills the
+   viewport minus the 64px header, and everything after it is a sibling. */
 .wrap {
   position: relative;
   z-index: 1;
-  flex: 1 1 auto;
+  flex: none;
   width: 100%;
   max-width: 1440px;
+  min-height: calc(100vh - 64px);
   margin: 0 auto;
-  padding: clamp(22px, 4vh, 56px) clamp(20px, 3.4vw, 48px) 0;
+  padding: clamp(22px, 4vh, 56px) clamp(20px, 3.4vw, 48px) 72px;
   display: flex;
   flex-direction: column;
   justify-content: center;
@@ -211,6 +215,10 @@ body {
   align-items: center;
   gap: clamp(32px, 5vw, 80px);
 }
+
+/* The copy column. min-width:0 only - a grid child defaults to min-content
+   width and the headline would otherwise refuse to let the track shrink. */
+.hero-l { min-width: 0; }
 
 .eyebrow { margin: 0 0 20px; }
 
@@ -286,6 +294,8 @@ body {
 
 /* Construction lines: the drawing's scaffolding, not its content. */
 .flow-frame { stroke: var(--steel-600); stroke-width: 1; opacity: 0.5; }
+/* One construction line. Keeps its hairline weight at any viewBox scale. */
+.fx { vector-effect: non-scaling-stroke; }
 /* The wires that actually carry the pipeline. */
 .wire { stroke: var(--steel-500); stroke-width: 1; }
 
@@ -361,6 +371,303 @@ body {
 .kpi-c .figure { font-size: 12px; }
 
 /* =========================================================================
+   Scroll cue - the hero has to admit the page continues
+   ========================================================================= */
+.scroll-cue {
+  position: absolute;
+  left: 50%;
+  bottom: 22px;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  text-decoration: none;
+  color: var(--ink-faint);
+  transition: color 0.12s linear;
+}
+.scroll-cue:hover { color: var(--ink-dim); }
+.scroll-cue-t {
+  font-size: 9.5px;
+  font-weight: 500;
+  letter-spacing: 0.18em;
+}
+.scroll-cue-line {
+  display: block;
+  width: 1px;
+  height: 26px;
+  background: linear-gradient(to bottom, transparent, var(--steel-500));
+}
+.scroll-cue-v { display: block; width: 14px; height: 8px; }
+.scroll-cue-v path { stroke: currentColor; stroke-width: 1.2; }
+
+/* =========================================================================
+   Below the fold
+   -------------------------------------------------------------------------
+   One near-opaque column over the whole lower page: the fixed canvas keeps
+   drifting behind it, but at 4% effective luminance it can never fight a
+   sentence. Bands are separated by a single hairline, nothing else.
+   ========================================================================= */
+.below {
+  position: relative;
+  z-index: 1;
+  background: rgba(13, 13, 13, 0.955);
+  border-top: var(--hair);
+}
+
+.band { border-top: var(--hair); }
+.band:first-child { border-top: 0; }
+
+.band-in {
+  width: 100%;
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: clamp(64px, 8vw, 104px) clamp(20px, 3.4vw, 48px);
+}
+
+/* ---- Section headers ---------------------------------------------------- */
+.sec-head { max-width: 62ch; margin: 0 0 clamp(36px, 4vw, 54px); }
+.sec-head .eyebrow { margin: 0 0 16px; }
+
+.sec-title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: clamp(26px, 2.7vw, 38px);
+  line-height: 1.12;
+  letter-spacing: -0.024em;
+  color: var(--ink);
+}
+.sec-lede {
+  margin: 18px 0 0;
+  max-width: 56ch;
+  font-size: 14px;
+  line-height: 1.62;
+  color: var(--ink-dim);
+}
+
+/* ---- 01 · Stages -------------------------------------------------------- */
+.stages { display: flex; flex-direction: column; }
+
+.stage {
+  display: grid;
+  grid-template-columns: minmax(0, 32fr) minmax(0, 68fr);
+  gap: clamp(24px, 4vw, 56px);
+  padding: clamp(28px, 3.4vw, 42px) 0;
+  border-top: var(--hair);
+}
+.stage:first-child { border-top: 0; padding-top: 0; }
+.stage:last-child { padding-bottom: 0; }
+
+.stage-k .eyebrow { margin: 0 0 14px; }
+.stage-h {
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: clamp(19px, 1.7vw, 24px);
+  line-height: 1.18;
+  letter-spacing: -0.02em;
+  color: var(--ink);
+}
+
+.stage-b { min-width: 0; }
+.stage-p {
+  margin: 0 0 14px;
+  max-width: 68ch;
+  font-size: 14px;
+  line-height: 1.66;
+  color: var(--ink-dim);
+}
+.stage-p:last-of-type { margin-bottom: 0; }
+
+/* The spec list. Mono, hairline-ruled, deliberately dry. */
+.spec {
+  margin: 24px 0 0;
+  border-top: var(--hair);
+}
+.spec-row {
+  display: grid;
+  grid-template-columns: minmax(0, 130px) minmax(0, 1fr);
+  gap: 16px;
+  padding: 8px 0;
+  border-bottom: var(--hair);
+}
+.spec-k {
+  margin: 0;
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  line-height: 1.6;
+  color: var(--ink-faint);
+}
+.spec-v {
+  margin: 0;
+  min-width: 0;
+  font-size: 11.5px;
+  line-height: 1.6;
+  color: var(--ink-dim);
+  overflow-wrap: anywhere;
+}
+
+/* ---- 02 · Evidence ------------------------------------------------------ */
+.evid { margin: 0 0 clamp(22px, 2.4vw, 30px); }
+.evid-l {
+  margin: 0 0 12px;
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+.evid-note {
+  margin: clamp(12px, 1.6vw, 20px) 0 0;
+  max-width: 64ch;
+  font-size: 14px;
+  line-height: 1.66;
+  color: var(--ink-dim);
+}
+
+/* ---- 03 · On-chain record ----------------------------------------------- */
+.chainpanel {
+  border: var(--hair);
+  border-radius: var(--radius);
+  background: var(--steel-900);
+  padding: clamp(20px, 2.4vw, 30px);
+}
+
+.chain-meta {
+  border-top: var(--hair);
+  margin-bottom: 22px;
+}
+.chain-row {
+  display: grid;
+  grid-template-columns: minmax(0, 120px) minmax(0, 1fr);
+  gap: 16px;
+  padding: 10px 0;
+  border-bottom: var(--hair);
+}
+.chain-k {
+  margin: 0;
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  color: var(--ink-faint);
+}
+.chain-v { margin: 0; min-width: 0; font-size: 12px; line-height: 1.5; }
+
+.chain-pre {
+  margin: 0;
+  padding: 16px 18px;
+  border: var(--hair);
+  border-radius: var(--radius);
+  background: var(--steel-800);
+  font-size: 11.5px;
+  line-height: 1.62;
+  color: var(--ink-dim);
+  overflow-x: auto;
+  white-space: pre;
+  tab-size: 2;
+}
+
+.chain-note,
+.tamper {
+  margin: 20px 0 0;
+  max-width: 72ch;
+  font-size: 14px;
+  line-height: 1.66;
+  color: var(--ink-dim);
+}
+.tamper-i {
+  display: inline-block;
+  margin-right: 10px;
+  padding: 3px 8px;
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  color: var(--alert);
+  border: 1px solid var(--alert-dim);
+  background: var(--alert-dim);
+  vertical-align: 1px;
+}
+
+/* ---- 04 · The written conclusion ---------------------------------------- */
+.conc {
+  display: grid;
+  grid-template-columns: minmax(0, 40fr) minmax(0, 60fr);
+  gap: clamp(24px, 4vw, 56px);
+  align-items: start;
+}
+.conc-k .eyebrow { margin: 0 0 16px; }
+.conc-b { min-width: 0; }
+
+/* ---- 05 · Limitations --------------------------------------------------- */
+.lims {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0;
+  border-top: var(--hair);
+}
+.lim {
+  padding: 22px 26px 24px 0;
+  border-bottom: var(--hair);
+  min-width: 0;
+}
+.lim:nth-child(even) { padding-left: 26px; border-left: var(--hair); }
+.lim-h {
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 15px;
+  line-height: 1.3;
+  letter-spacing: -0.012em;
+  color: var(--ink);
+}
+.lim-p {
+  margin: 10px 0 0;
+  font-size: 13px;
+  line-height: 1.62;
+  color: var(--ink-dim);
+}
+
+/* ---- 06 · Responsible use ----------------------------------------------- */
+.resp {
+  display: grid;
+  grid-template-columns: minmax(0, 30fr) minmax(0, 70fr);
+  gap: clamp(24px, 4vw, 56px);
+  align-items: start;
+}
+.resp-k .eyebrow { margin: 0; }
+.resp-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-top: var(--hair);
+}
+.resp-list li {
+  padding: 14px 0;
+  border-bottom: var(--hair);
+  max-width: 72ch;
+  font-size: 14px;
+  line-height: 1.62;
+  color: var(--ink-dim);
+}
+
+/* ---- Reveal on scroll ---------------------------------------------------
+   Six pixels and an opacity ramp. theme.css flattens the transition entirely
+   under prefers-reduced-motion, and the inline script adds .in outright in
+   that case, so nothing ever stays invisible. */
+.js-rv .rv {
+  opacity: 0;
+  transform: translateY(6px);
+  transition: opacity 0.34s ease-out, transform 0.34s ease-out;
+}
+.js-rv .rv.in { opacity: 1; transform: none; }
+
+@media (prefers-reduced-motion: reduce) {
+  .js-rv .rv { opacity: 1; transform: none; }
+}
+
+/* =========================================================================
    Footer
    ========================================================================= */
 .ftr {
@@ -369,15 +676,40 @@ body {
   flex: none;
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 18px;
   flex-wrap: wrap;
-  padding: 16px clamp(20px, 3.4vw, 48px) 18px;
-  margin-top: clamp(18px, 3vh, 40px);
+  padding: 24px clamp(20px, 3.4vw, 48px) 28px;
+  margin-top: 0;
+  border-top: var(--hair);
+  background: rgba(13, 13, 13, 0.955);
   font-size: 10px;
   letter-spacing: 0.08em;
   color: var(--ink-faint);
 }
 .ftr .sep { color: var(--steel-500); }
+
+.ftr-l {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  max-width: 74ch;
+  line-height: 1.7;
+}
+.ftr-a {
+  color: var(--ink-dim);
+  text-decoration: none;
+  letter-spacing: 0.14em;
+  transition: color 0.12s linear;
+}
+.ftr-a:hover { color: var(--ink); }
+
+.ftr-cta {
+  margin-left: auto;
+  flex: none;
+  font-size: 10px;
+  padding: 13px 22px;
+}
 
 /* =========================================================================
    Narrower viewports. Below 1080 the hero stacks; the diagram stays, because
@@ -399,10 +731,24 @@ body {
   .kpi:nth-child(n + 3) { border-top: var(--hair); }
 }
 
+@media (max-width: 980px) {
+  .stage,
+  .conc,
+  .resp {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 22px;
+  }
+  .lims { grid-template-columns: minmax(0, 1fr); }
+  .lim { padding-right: 0; }
+  .lim:nth-child(even) { padding-left: 0; border-left: 0; }
+}
+
 @media (max-width: 900px) {
   .tagline { display: none; }
   .head { font-size: clamp(32px, 6.6vw, 44px); }
   .lede { font-size: 14px; }
+  .band-in { padding-top: 60px; padding-bottom: 60px; }
+  .chain-pre { font-size: 10.5px; }
 }
 
 @media (max-width: 620px) {
@@ -413,6 +759,9 @@ body {
   .kpi { border-left: 0; border-top: var(--hair); }
   .kpi:first-child { border-top: 0; }
   .cta, .ghost { flex: 1 1 100%; }
+  .spec-row,
+  .chain-row { grid-template-columns: minmax(0, 1fr); gap: 4px; }
+  .ftr-cta { margin-left: 0; flex: 1 1 100%; }
 }
 
 /* Reduced motion: theme.css already flattens transitions; scene.js renders a

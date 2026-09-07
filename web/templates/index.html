@@ -84,6 +84,11 @@
     </div>
 
     <button class="run" id="run" type="button">RUN PIPELINE</button>
+
+    <!-- The artifact you take away from a run. Revealed by app.js on success. -->
+    <a class="report" id="report" href="#" hidden download>
+      DOWNLOAD CONCLUSION REPORT (PDF)
+    </a>
   </section>
 
   <!-- ---------------- RIGHT: stages ---------------- -->
@@ -216,9 +221,6 @@
             <span class="v-b" id="v-tamper-b">pending</span>
             <span class="v-d" id="v-tamper-d"></span>
           </div>
-          <a class="report" id="report" href="#" hidden download>
-            DOWNLOAD CONCLUSION REPORT (PDF)
-          </a>
         </div>
       </div>
       <div class="err" id="err-chain" hidden></div>

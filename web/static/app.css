@@ -392,7 +392,7 @@ select.in {
    ------------------------------------------------------------------------ */
 .col-out {
   display: grid;
-  grid-template-rows: minmax(0, 0.85fr) minmax(0, 1.50fr) minmax(0, 1.17fr);
+  grid-template-rows: minmax(0, 0.85fr) minmax(0, 1.45fr) minmax(0, 1.22fr);
   gap: 10px;
   min-height: 0;
 }
@@ -811,7 +811,9 @@ select.in {
   .chain-r .lbl { margin-bottom: 4px; }
   .chain-r .kv { gap: 0 12px; }
   .chain-r .kv dt { font-size: 8.5px; line-height: 1.35; }
-  .chain-r .kv dd { font-size: 11px; line-height: 1.35; }
+  /* 10.5px is the size at which a 66-char tx hash still lands on one line at
+     1280 - which buys the whole "gas used" row back. */
+  .chain-r .kv dd { font-size: 10.5px; line-height: 1.35; }
   .card-body { padding: 9px 12px; }
   .notes { max-height: 28px; margin-bottom: 7px; }
 }
@@ -837,22 +839,28 @@ select.in {
 }
 
 
-/* ---- Conclusion report ------------------------------------------------- */
-/* The one link that leaves the page, so it gets the accent fill the RUN
-   button has - it is the artifact you take away from a run. */
+/* ---- Conclusion report ---------------------------------------------------
+   The artifact you take away from a run. It sits under RUN PIPELINE and is
+   deliberately a ghost, not a second cyan fill: two filled buttons stacked
+   would spend the accent twice and neither would mean anything. Cyan text on
+   a hairline says "ready, secondary".
+   ---------------------------------------------------------------------- */
 .report {
   display: block;
-  margin-top: 14px;
-  padding: 10px 14px;
-  background: var(--signal);
-  color: var(--signal-ink);
-  border: 0;
+  margin-top: 10px;
+  padding: 9px 12px;
+  background: transparent;
+  color: var(--signal);
+  border: 1px solid var(--signal-dim);
   border-radius: var(--radius);
   font-family: var(--font-mono);
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.12em;
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.14em;
   text-align: center;
   text-decoration: none;
 }
-.report:hover { filter: brightness(1.12); }
+.report:hover { border-color: var(--signal); }
+/* The UA rule for [hidden] loses to the display above - restore it, or the
+   link occupies the layout before a run has ever produced one. */
+.report[hidden] { display: none; }

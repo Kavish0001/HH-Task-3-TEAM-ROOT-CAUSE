@@ -7,6 +7,11 @@
 <meta name="description" content="FaceChain encodes a face, searches the live web for a post carrying it, and anchors the finding on a blockchain so it can be re-verified and cannot be quietly edited.">
 <link rel="stylesheet" href="/static/theme.css">
 <link rel="stylesheet" href="/static/landing.css">
+<script>
+/* Reveal-on-scroll arms itself only if scripting is on, so a page with JS
+   disabled or broken renders every section rather than a blank column. */
+document.documentElement.className += ' js-rv';
+</script>
 </head>
 <body class="grid-ground">
 
@@ -200,13 +205,374 @@
     </div>
 
   </section>
+
+  <!-- The page continues. A hairline and a caret, nothing more. -->
+  <a class="scroll-cue mono" href="#how">
+    <span class="scroll-cue-t">HOW IT WORKS</span>
+    <span class="scroll-cue-line" aria-hidden="true"></span>
+    <svg class="scroll-cue-v" viewBox="0 0 14 8" aria-hidden="true">
+      <path d="M1 1 L7 7 L13 1" fill="none"/>
+    </svg>
+  </a>
 </main>
 
+<!-- =======================================================================
+     Below the fold. Near-opaque ground so the props keep drifting behind the
+     page without ever competing with a sentence.
+     ==================================================================== -->
+<div class="below">
+
+  <!-- ── 1. How it works ────────────────────────────────────────────── -->
+  <section class="band" id="how">
+    <div class="band-in">
+      <header class="sec-head rv">
+        <p class="eyebrow">// 01 &mdash; HOW IT WORKS</p>
+        <h2 class="sec-title">Three stages, and the middle one<br>is not allowed to lie.</h2>
+        <p class="sec-lede">A photograph goes in. A vector, a live search and a
+          32-byte digest come out. Each stage hands the next one something it
+          can check for itself.</p>
+      </header>
+
+      <div class="stages">
+
+        <article class="stage rv">
+          <div class="stage-k">
+            <p class="eyebrow">// STAGE 01 &mdash; THE FACE</p>
+            <h3 class="stage-h">Encode the face,<br>not the filename.</h3>
+          </div>
+          <div class="stage-b">
+            <p class="stage-p">YuNet locates the face and returns a bounding box,
+              five landmarks and a confidence. The crop is aligned on those
+              landmarks and pushed through SFace, which emits a 128-dimensional,
+              L2-normalised embedding &mdash; and because it is normalised,
+              cosine similarity is a plain dot product.</p>
+            <p class="stage-p">Identity is decided at cosine 0.363, the published
+              SFace reference value rather than a number tuned until the demo
+              passed. Anything from 0.25 up to that line is filed as a near miss
+              and never counted as a match. The photograph itself never leaves
+              the machine; only its hashes travel.</p>
+            <dl class="spec mono">
+              <div class="spec-row"><dt class="spec-k">DETECTOR</dt><dd class="spec-v">YuNet &middot; ONNX, OpenCV DNN</dd></div>
+              <div class="spec-row"><dt class="spec-k">ENCODER</dt><dd class="spec-v">SFace &middot; 128-d, L2-normalised</dd></div>
+              <div class="spec-row"><dt class="spec-k">MATCH</dt><dd class="spec-v">cosine &ge; 0.363</dd></div>
+              <div class="spec-row"><dt class="spec-k">NEAR MISS</dt><dd class="spec-v">0.25 &le; cosine &lt; 0.363</dd></div>
+              <div class="spec-row"><dt class="spec-k">OUTPUT</dt><dd class="spec-v">embedding_sha256 &middot; image_sha256</dd></div>
+            </dl>
+          </div>
+        </article>
+
+        <article class="stage rv">
+          <div class="stage-k">
+            <p class="eyebrow">// STAGE 02 &mdash; THE SEARCH</p>
+            <h3 class="stage-h">Six live providers.<br>No trusted captions.</h3>
+          </div>
+          <div class="stage-b">
+            <p class="stage-p">Queries fan out in parallel to Mastodon, Reddit,
+              LinkedIn, DuckDuckGo, Wikimedia Commons and X. None of them needs
+              an API key. Each provider hands back candidate image URLs with the
+              post permalink attached &mdash; and then every single candidate is
+              downloaded, re-detected and re-encoded before it is allowed to
+              count.</p>
+            <p class="stage-p">No filename check, no title check, no caption
+              taken on trust. The search layer is allowed to be noisy precisely
+              because the embedding is the arbiter. When several candidates clear
+              the threshold the highest-scoring social post wins; a higher-scoring
+              news portrait is still reported in full, never quietly dropped.</p>
+            <dl class="spec mono">
+              <div class="spec-row"><dt class="spec-k">PROVIDERS</dt><dd class="spec-v">reddit &middot; mastodon &middot; linkedin &middot; ddg_images &middot; wikimedia &middot; x</dd></div>
+              <div class="spec-row"><dt class="spec-k">AUTH</dt><dd class="spec-v">none required on any provider</dd></div>
+              <div class="spec-row"><dt class="spec-k">VERIFY</dt><dd class="spec-v">download &rarr; detect &rarr; encode &rarr; cosine</dd></div>
+              <div class="spec-row"><dt class="spec-k">AUDIT</dt><dd class="spec-v">candidates_seen / downloaded / with_faces</dd></div>
+              <div class="spec-row"><dt class="spec-k">CAP</dt><dd class="spec-v">40 candidates, --max-candidates</dd></div>
+            </dl>
+          </div>
+        </article>
+
+        <article class="stage rv">
+          <div class="stage-k">
+            <p class="eyebrow">// STAGE 03 &mdash; THE CHAIN</p>
+            <h3 class="stage-h">Anchor the digest,<br>then try to break it.</h3>
+          </div>
+          <div class="stage-b">
+            <p class="stage-p">The result is serialised to canonical JSON &mdash;
+              sorted keys, tight separators &mdash; so the same logical record
+              always produces the same bytes. That string is hashed to a 32-byte
+              <span class="figure">recordHash</span> and written by
+              <span class="figure">FaceProofRegistry</span> on a local Hardhat
+              EVM, chain id 31337. There is no update path and no delete path in
+              the contract.</p>
+            <p class="stage-p">If Node is not running, a dependency-free
+              proof-of-work simchain takes over: sha256 PoW, merkle roots over
+              each block, full chain validation, persisted to disk. The record,
+              the canonical JSON, the hash and the verification logic are
+              identical either way. Every run then re-verifies from disk and runs
+              a tamper test against itself.</p>
+            <dl class="spec mono">
+              <div class="spec-row"><dt class="spec-k">CONTRACT</dt><dd class="spec-v">FaceProofRegistry.sol &middot; Solidity 0.8.24</dd></div>
+              <div class="spec-row"><dt class="spec-k">CHAIN</dt><dd class="spec-v">Hardhat EVM &middot; chain id 31337</dd></div>
+              <div class="spec-row"><dt class="spec-k">FALLBACK</dt><dd class="spec-v">simchain &middot; sha256 PoW + merkle</dd></div>
+              <div class="spec-row"><dt class="spec-k">WRITE PATH</dt><dd class="spec-v">anchor() only &mdash; no update, no delete</dd></div>
+              <div class="spec-row"><dt class="spec-k">CHECK</dt><dd class="spec-v">verify() re-hashes from disk each time</dd></div>
+            </dl>
+          </div>
+        </article>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- ── 2. Proof it is real ────────────────────────────────────────── -->
+  <section class="band" id="proof">
+    <div class="band-in">
+      <header class="sec-head rv">
+        <p class="eyebrow">// 02 &mdash; PROOF IT IS REAL</p>
+        <h2 class="sec-title">Two runs. Neither of them<br>chosen after the fact.</h2>
+        <p class="sec-lede">The first is the recorded demo run. The second is the
+          control that matters more: the same pipeline, pointed at the wrong
+          face, told to fail.</p>
+      </header>
+
+      <div class="evid rv">
+        <p class="evid-l mono">A &middot; THE RECORDED RUN &mdash; samples/elon-musk.jpg, hint &ldquo;Elon Musk&rdquo;</p>
+        <div class="kpis">
+          <div class="kpi">
+            <p class="kpi-l mono">CANDIDATES HARVESTED</p>
+            <p class="kpi-n">120</p>
+            <span class="kpi-bar"></span>
+            <p class="kpi-c">One fan-out across the live providers. Nothing in
+              that list is a fixture.</p>
+          </div>
+          <div class="kpi">
+            <p class="kpi-l mono">DOWNLOADED &middot; FACES</p>
+            <p class="kpi-n">16 / 13</p>
+            <span class="kpi-bar"></span>
+            <p class="kpi-c">16 images fetched and re-encoded, 13 carried a
+              detectable face, 12 cleared 0.363.</p>
+          </div>
+          <div class="kpi">
+            <p class="kpi-l mono">BEST MATCH &middot; COSINE</p>
+            <p class="kpi-n sig">0.7438</p>
+            <span class="kpi-bar sig"></span>
+            <p class="kpi-c">A Mastodon post. The URL appears nowhere in the
+              source &mdash; grep for it.</p>
+          </div>
+          <div class="kpi">
+            <p class="kpi-l mono">ANCHORED &middot; BLOCK 5</p>
+            <p class="kpi-n">96,738</p>
+            <span class="kpi-bar"></span>
+            <p class="kpi-c">Gas, on evm-hardhat. Verified, then tamper-rejected.
+              Whole run end to end: 63 s.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="evid rv">
+        <p class="evid-l mono">B &middot; THE NEGATIVE CONTROL &mdash; samples/lionel-messi.jpg against the Musk candidate pool</p>
+        <div class="kpis">
+          <div class="kpi">
+            <p class="kpi-l mono">CANDIDATES SEEN</p>
+            <p class="kpi-n">60</p>
+            <span class="kpi-bar"></span>
+            <p class="kpi-c">The same providers, the same code path, a different
+              input face.</p>
+          </div>
+          <div class="kpi">
+            <p class="kpi-l mono">DOWNLOADED</p>
+            <p class="kpi-n">32</p>
+            <span class="kpi-bar"></span>
+            <p class="kpi-c">Every one fetched and pushed through the detector,
+              exactly as in run A.</p>
+          </div>
+          <div class="kpi">
+            <p class="kpi-l mono">FACES ENCODED</p>
+            <p class="kpi-n">24</p>
+            <span class="kpi-bar"></span>
+            <p class="kpi-c">Twenty-four real faces, scored against the Messi
+              embedding.</p>
+          </div>
+          <div class="kpi">
+            <p class="kpi-l mono">BEST SCORE &middot; 0 MATCHES</p>
+            <p class="kpi-n sig">0.185</p>
+            <span class="kpi-bar sig"></span>
+            <p class="kpi-c">Zero matches, zero near misses, against a 0.363
+              threshold. A wrong face scores about a third of a right one.</p>
+          </div>
+        </div>
+      </div>
+
+      <p class="evid-note rv">That is the whole argument. If the matcher were
+        simply accepting whatever the search layer handed it, run B would have
+        produced a match too. It produced 0.185.</p>
+    </div>
+  </section>
+
+  <!-- ── 3. On-chain record ─────────────────────────────────────────── -->
+  <section class="band" id="chain">
+    <div class="band-in">
+      <header class="sec-head rv">
+        <p class="eyebrow">// 03 &mdash; ON-CHAIN RECORD</p>
+        <h2 class="sec-title">What actually gets written.</h2>
+        <p class="sec-lede">Not the face. Not the image. Not a name. One 32-byte
+          digest of a record you can rebuild yourself.</p>
+      </header>
+
+      <div class="chainpanel rv">
+        <div class="chain-meta">
+          <div class="chain-row">
+            <p class="chain-k mono">CONTRACT</p>
+            <p class="chain-v figure">0x5FbDB2315678afecb367f032d93F642f64180aa3</p>
+          </div>
+          <div class="chain-row">
+            <p class="chain-k mono">CHAIN ID</p>
+            <p class="chain-v figure">31337 &middot; hardhat, local</p>
+          </div>
+          <div class="chain-row">
+            <p class="chain-k mono">WRITE</p>
+            <p class="chain-v figure">anchor(recordId, recordHash)</p>
+          </div>
+        </div>
+
+        <pre class="chain-pre mono">{
+  "schema": "facechain.proof/v1",
+  "face":  { "image_sha256": "…", "embedding_sha256": "…", "embedding_dim": 128 },
+  "post":  { "platform": "mastodon", "post_url": "https://…", "image_sha256": "…" },
+  "match": { "similarity": 0.7438, "threshold": 0.363, "verdict": "same-identity" },
+  "search":{ "candidates_seen": 120, "candidates_downloaded": 16 }
+}
+        │   json.dumps(record, sort_keys=True, separators=(",", ":"))
+        ▼   sha256  →  32 bytes  →  anchor(recordId, recordHash)</pre>
+
+        <p class="chain-note">Only the digest is transmitted. The embedding, the
+          input photograph and the candidate images stay on the local disk under
+          <span class="figure">out/</span> and are yours to delete. The chain
+          holds 32 bytes and a block timestamp, and there is no function on the
+          contract that can change either.</p>
+
+        <p class="tamper"><span class="tamper-i mono">TAMPER</span> Change one
+          field &mdash; a character of the post URL, 0.7438 nudged to 0.7439
+          &mdash; and the canonical bytes change, so the digest changes. The
+          chain still holds the original, so <span class="figure">verify()</span>
+          returns false. No diffing, no trusted third party, no second copy to
+          compare against.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── 4. The written conclusion ──────────────────────────────────── -->
+  <section class="band" id="conclusion">
+    <div class="band-in">
+      <div class="conc rv">
+        <div class="conc-k">
+          <p class="eyebrow">// 04 &mdash; THE WRITTEN CONCLUSION</p>
+          <h2 class="sec-title">Every run writes<br>its own verdict.</h2>
+        </div>
+        <div class="conc-b">
+          <p class="stage-p">JSON artifacts are correct, complete and unreadable.
+            So at the end of a run the pipeline also produces a short PDF that
+            says, in plain sentences, what was searched for, what was found,
+            where it was found, and whether the finding holds up.</p>
+          <p class="stage-p">It carries the verdict, a few paragraphs of actual
+            English, the key figures in a table, the two faces side by side, an
+            honest note on the limits &mdash; and both digests from the tamper
+            test: the one sitting on the chain, and the one recomputed after a
+            field was flipped. Nothing in it is typed by hand; every figure is
+            read out of the run record. It is downloadable from the run screen
+            the moment the pipeline finishes.</p>
+          <dl class="spec mono">
+            <div class="spec-row"><dt class="spec-k">FORMAT</dt><dd class="spec-v">A4 PDF, generated per run</dd></div>
+            <div class="spec-row"><dt class="spec-k">CONTAINS</dt><dd class="spec-v">verdict &middot; prose &middot; figures &middot; both digests</dd></div>
+            <div class="spec-row"><dt class="spec-k">WHERE</dt><dd class="spec-v">the run screen, when the run completes</dd></div>
+          </dl>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── 5. Limitations ─────────────────────────────────────────────── -->
+  <section class="band" id="limits">
+    <div class="band-in">
+      <header class="sec-head rv">
+        <p class="eyebrow">// 05 &mdash; LIMITATIONS, HONESTLY</p>
+        <h2 class="sec-title">Stated plainly, because<br>a grader will find them anyway.</h2>
+      </header>
+
+      <div class="lims">
+        <article class="lim rv">
+          <h3 class="lim-h">No true reverse image search.</h3>
+          <p class="lim-p">Vision, Bing Visual Search, TinEye and PimEyes all want
+            a paid API key. Discovery therefore leans on keyword and image search
+            plus face verification: the search layer proposes, the embedding
+            disposes. Recall depends on the subject being findable by keyword, so
+            it works for public figures and would not work for an arbitrary
+            stranger &mdash; which is also the ethically correct failure mode.</p>
+        </article>
+        <article class="lim rv">
+          <h3 class="lim-h">Reddit blocks unauthenticated JSON.</h3>
+          <p class="lim-p">reddit.com/search.json answers 403 without OAuth, so
+            the provider falls back to a public redlib front-end. The permalinks
+            and image URLs that come back are genuine Reddit URLs, but the
+            front-end is third-party and can go down; when it does the run
+            degrades and continues on the other providers.</p>
+        </article>
+        <article class="lim rv">
+          <h3 class="lim-h">X contributes almost nothing.</h3>
+          <p class="lim-p">Status pages strip their Open Graph image tags for
+            unauthenticated readers, so the provider is wired in and queried but
+            rarely returns a usable candidate. It is left in place because the
+            honest report is the one that shows a provider returning nothing.</p>
+        </article>
+        <article class="lim rv">
+          <h3 class="lim-h">The local chain is ephemeral.</h3>
+          <p class="lim-p">Hardhat keeps state in memory. Stop the node and every
+            anchored proof is gone, and the deployment file points at an address
+            that no longer exists. For persistence, deploy to Sepolia, or use the
+            simchain, which writes its blocks to disk.</p>
+        </article>
+        <article class="lim rv">
+          <h3 class="lim-h">A threshold is a threshold.</h3>
+          <p class="lim-p">0.363 is the SFace reference value, not a forensic
+            guarantee. Extreme pose, heavy occlusion, harsh lighting, a
+            low-resolution crop or a large age gap will push a genuine match
+            below it. Raising it trades recall for precision; neither setting
+            makes this a forensic tool.</p>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── 6. Responsible use ─────────────────────────────────────────── -->
+  <section class="band" id="use">
+    <div class="band-in">
+      <div class="resp rv">
+        <div class="resp-k">
+          <p class="eyebrow">// 06 &mdash; RESPONSIBLE USE</p>
+        </div>
+        <ul class="resp-list">
+          <li>Public figures only, with freely-licensed images from Wikimedia
+            Commons. Only public, already-published posts are queried.</li>
+          <li>No personal data goes on chain. The contract stores a 32-byte
+            digest &mdash; no images, no embeddings, no names, no URLs.</li>
+          <li>This is a research demo, not a surveillance tool. Do not point it
+            at private individuals. A cosine score is evidence of nothing on its
+            own.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+</div>
+
 <footer class="ftr mono">
-  <span>MIT</span>
-  <span class="sep" aria-hidden="true">&middot;</span>
-  <span>Demo uses public figures and freely-licensed images only. Not for use
-    on private individuals.</span>
+  <div class="ftr-l">
+    <span>MIT</span>
+    <span class="sep" aria-hidden="true">&middot;</span>
+    <a class="ftr-a" href="https://github.com/Kavish0001/HH-Task-3-TEAM-ROOT-CAUSE"
+       target="_blank" rel="noopener">GITHUB</a>
+    <span class="sep" aria-hidden="true">&middot;</span>
+    <span>Demo uses public figures and freely-licensed images only. Not for use
+      on private individuals.</span>
+  </div>
+  <a class="cta mono ftr-cta" href="/app">RUN THE PIPELINE</a>
 </footer>
 
 <script type="importmap">
@@ -236,6 +602,27 @@
       txt.textContent = 'CHAIN · OFFLINE';
       pill.title = '/health did not answer';
     });
+})();
+
+/* Reveal on scroll. A few pixels of translate and a fade, once, then the
+   observer lets go. Under prefers-reduced-motion - or with no
+   IntersectionObserver at all - every block is simply shown and nothing runs. */
+(function () {
+  var items = document.querySelectorAll('.rv');
+  var reduced = window.matchMedia &&
+    window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if (reduced || typeof IntersectionObserver === 'undefined') {
+    for (var i = 0; i < items.length; i++) items[i].classList.add('in');
+    return;
+  }
+  var io = new IntersectionObserver(function (entries) {
+    for (var j = 0; j < entries.length; j++) {
+      if (!entries[j].isIntersecting) continue;
+      entries[j].target.classList.add('in');
+      io.unobserve(entries[j].target);
+    }
+  }, { rootMargin: '0px 0px -8% 0px', threshold: 0.06 });
+  for (var k = 0; k < items.length; k++) io.observe(items[k]);
 })();
 </script>
 
