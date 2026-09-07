@@ -166,8 +166,18 @@ Node and Hardhat are a hard dependency for the EVM path, and hackathon wifi is n
 | Receipt | Real tx hash, block number, gas used | Block hash, nonce, merkle root |
 | Persistence | Until the node stops | `out/simchain.json` |
 
-Deployed address after `npm run deploy`: `<!-- TODO:VALUE -->` _(read from `chain/deployment.json`; filled at runtime)_.
-Latest demo anchor transaction: `<!-- TODO:VALUE -->` _(filled at runtime)_.
+From the recorded demo run against a local Hardhat node (chain id `31337`):
+
+| | |
+| --- | --- |
+| `FaceProofRegistry` | `0x5FbDB2315678afecb367f032d93F642f64180aa3` |
+| Anchor transaction | `0x55d8addf5b43a699f88a82baa2cbe3691b959442e61d50b05cc848fa840804da` |
+| Block / gas | `3` / `96,738` |
+| Submitter | `0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266` |
+
+Hardhat allocates deterministic addresses from a fixed mnemonic, so a fresh
+`npm run deploy` on a clean node reproduces the same contract address. The
+authoritative values for your own run are always in `chain/deployment.json`.
 
 ---
 
@@ -176,7 +186,7 @@ Latest demo anchor transaction: `<!-- TODO:VALUE -->` _(filled at runtime)_.
 **Prerequisites:** Python 3.10+. Node.js 18+ **only** for the full-EVM path.
 
 ```bash
-git clone https://github.com/Kavish0001/facechain.git   <!-- TODO:VALUE -->
+git clone https://github.com/Kavish0001/HH-Task-3-TEAM-ROOT-CAUSE.git
 cd facechain
 
 python -m venv .venv
@@ -224,25 +234,28 @@ python run_pipeline.py --image samples/elon-musk.jpg --hint "Elon Musk" --chain 
 Re-verification reads a saved record, recomputes the hash and asks the chain. Edit the record file between the two runs and watch it fail.
 
 ```bash
-# verify the record that is on disk right now against its anchored proof
-python run_pipeline.py --verify-only out/record.json
+# re-verify a saved proof against the chain
+python run_pipeline.py --verify out/proof-6a2513aa2c65.json
+# -> VERIFIED   computed_hash == onchain_hash
 
-# now tamper with it — change one character of post_url or similarity — and re-run
-python run_pipeline.py --verify-only out/record.json
-# → verified: False   (computed_hash != onchain_hash)
+# now flip one field of the evidence and ask the chain again
+python run_pipeline.py --verify out/proof-6a2513aa2c65.json --tamper
+# -> TAMPER DETECTED   computed_hash != onchain_hash
 ```
 
 ### CLI flags
 
 | Flag | Default | Purpose |
 | --- | --- | --- |
-| `--image PATH` | — | Input face photograph. Required unless `--verify-only`. |
-| `--hint TEXT` | none | Keyword hint to seed the search queries. Improves recall; the match is still decided by the embedding. |
+| `--image PATH`, `-i` | — | Input face photograph. Required unless `--verify`. |
+| `--hint TEXT`, `-H` | none | Keyword hint to seed the search queries. Improves recall; the match is still decided by the embedding. |
 | `--chain {auto,evm,sim}` | `auto` | Ledger backend. `auto` prefers EVM when a deployment and a live RPC are present. |
-| `--verify-only PATH` | — | Skip stages 1–2; recompute the hash of a saved record and check it against the chain. |
+| `--verify PATH` | — | Skip stages 1-2; recompute the hash of a saved proof and check it against the chain. |
+| `--tamper` | off | With `--verify`: alter the evidence first and assert the chain rejects it. |
+| `--provider NAME` | all | Restrict to one or more search providers (repeatable). |
 | `--threshold FLOAT` | `0.363` | Override the cosine identity threshold. |
 | `--max-candidates N` | `40` | Cap on candidate images downloaded and face-checked. |
-| `--out DIR` | `out/` | Where profiles, reports, receipts and the simchain are written. |
+| `FACECHAIN_OUT` env | `out/` | Where profiles, reports, receipts and the simchain are written. |
 
 ### Environment variables
 
@@ -340,8 +353,7 @@ facechain/
 
 **Built by [@Kavish0001](https://github.com/Kavish0001)**
 
-<!-- TODO:VALUE — repo URL -->
-[![Repo](https://img.shields.io/badge/FaceChain-HH_Goa_2026_·_Task_3-ff0000?style=for-the-badge&logo=github&logoColor=white&labelColor=0d0d0d)](https://github.com/Kavish0001/facechain)
+[![Repo](https://img.shields.io/badge/FaceChain-HH_Goa_2026_·_Task_3-ff0000?style=for-the-badge&logo=github&logoColor=white&labelColor=0d0d0d)](https://github.com/Kavish0001/HH-Task-3-TEAM-ROOT-CAUSE)
 
 <img
   src="https://capsule-render.vercel.app/api?type=waving&color=0:ff0000,45:2b2e33,100:0d0d0d&height=140&section=footer"

@@ -242,7 +242,19 @@ def verify_only(proof_path: str, tamper: bool, backend: str) -> int:
     client = chainmod.ChainClient(backend)
     report.step("backend: " + client.description)
     report.step("record id " + rid)
-    result = client.verify(record, rid)
+
+    # Verify against the contract the proof was actually anchored to, not
+    # whatever happens to be in deployment.json now - a local node restart or a
+    # redeploy would otherwise make every saved proof look unanchored.
+    anchored_to = blob.get("receipt", {}).get("contract_address") or ""
+    anchored_chain = blob.get("receipt", {}).get("chain_id")
+    if anchored_to:
+        report.step("proof was anchored to " + anchored_to)
+    try:
+        result = client.verify(record, rid, contract_address=anchored_to or None,
+                               chain_id=anchored_chain)
+    except TypeError:
+        result = client.verify(record, rid)
     report.kv_table("Verification", {
         "computed hash": result.computed_hash,
         "on-chain hash": result.onchain_hash,
@@ -250,11 +262,16 @@ def verify_only(proof_path: str, tamper: bool, backend: str) -> int:
         "block": result.block_number,
         "anchored at": result.anchored_at,
     })
-    passed = result.verified if not tamper else not result.verified
-    report.verdict(passed,
-                   "evidence matches the on-chain record" if result.verified
-                   else "evidence does NOT match the on-chain record",
-                   result.detail)
+    if tamper:
+        # Success here means the chain REFUSED the altered evidence.
+        passed = not result.verified
+        headline = ("altered evidence was rejected by the chain" if passed
+                    else "altered evidence was accepted - this is a bug")
+    else:
+        passed = result.verified
+        headline = ("evidence matches the on-chain record" if passed
+                    else "evidence does NOT match the on-chain record")
+    report.verdict(passed, headline, result.detail)
     return 0 if passed else 1
 
 
