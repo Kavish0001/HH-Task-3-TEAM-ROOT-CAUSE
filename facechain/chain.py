@@ -159,6 +159,7 @@ class ChainClient:
         # EVM state (populated by _connect_evm)
         self._w3: Any = None
         self._contract: Any = None
+        self._abi: Any = None
         self._account: str = ""
         self._local_key: str = ""
         self._chain_id: int = 0
@@ -239,6 +240,7 @@ class ChainClient:
                 account = accounts[0]
 
             self._w3 = w3
+            self._abi = abi
             self._contract = w3.eth.contract(address=checksum, abi=abi)
             self._contract_address = checksum
             self._account = account
@@ -421,7 +423,14 @@ class ChainClient:
 
     # -- verification -----------------------------------------------------
 
-    def verify(self, record: Dict[str, Any], record_id: Optional[str] = None) -> VerificationResult:
+    def verify(
+        self,
+        record: Dict[str, Any],
+        record_id: Optional[str] = None,
+        *,
+        contract_address: Optional[str] = None,
+        chain_id: Optional[int] = None,
+    ) -> VerificationResult:
         """Re-verify ``record`` against the chain.
 
         The digest is recomputed from ``record`` (never taken from a receipt)
@@ -433,12 +442,35 @@ class ChainClient:
             record: The data in hand, right now.
             record_id: The bytes32 id to look up. Defaults to the id derived
                 from ``record`` itself.
+            contract_address: Registry the proof was originally anchored to.
+                Pass the address from a saved receipt so the proof stays
+                verifiable after the contract has been redeployed; defaults to
+                the address in ``chain/deployment.json``.
+            chain_id: Chain the proof was originally anchored on. When it does
+                not match the connected chain the result explains that rather
+                than reporting the proof as missing.
         """
         computed = record_hash(record)
-        rid = record_id if record_id else _derive_record_id(record)
+        rid = str(record_id) if record_id else _derive_record_id(record)
+
+        if chain_id is not None and int(chain_id) != int(self._chain_id):
+            return VerificationResult(
+                backend=self._backend,
+                record_id=rid,
+                computed_hash=computed,
+                onchain_hash="",
+                verified=False,
+                exists_onchain=False,
+                detail=(
+                    f"Chain mismatch: this proof was anchored on chain {int(chain_id)}, "
+                    f"but this client is connected to chain {self._chain_id} "
+                    f"({self._backend}). Re-run verification against the original chain."
+                ),
+            )
+
         if self.is_evm:
-            return self._verify_evm(record=record, rid=str(rid), computed=computed)
-        return self._verify_sim(rid=str(rid), computed=computed)
+            return self._verify_evm(rid=rid, computed=computed, contract_address=contract_address)
+        return self._verify_sim(rid=rid, computed=computed)
 
     def _verify_sim(self, rid: str, computed: str) -> VerificationResult:
         assert self._sim is not None
@@ -454,8 +486,9 @@ class ChainClient:
                 verified=False,
                 exists_onchain=False,
                 detail=(
-                    f"No proof is anchored under record id {rid} on the simchain "
-                    "- this record was never anchored, or its identity fields changed."
+                    f"No proof is anchored under record id {rid} on the simchain at "
+                    f"{config.SIMCHAIN_PATH} - this record was never anchored, its identity "
+                    "fields changed, or the chain file was deleted/reset."
                 ),
             )
 
@@ -490,8 +523,30 @@ class ChainClient:
             detail=detail,
         )
 
-    def _verify_evm(self, record: Dict[str, Any], rid: str, computed: str) -> VerificationResult:
-        contract = self._contract
+    def _verify_evm(
+        self,
+        rid: str,
+        computed: str,
+        contract_address: Optional[str] = None,
+    ) -> VerificationResult:
+        contract, address = self._bind_contract(contract_address)
+        if contract is None:
+            return VerificationResult(
+                backend=self._backend,
+                record_id=rid,
+                computed_hash=computed,
+                onchain_hash="",
+                verified=False,
+                exists_onchain=False,
+                detail=(
+                    f"No FaceProofRegistry code found at {address} on chain "
+                    f"{self._chain_id}. The proof was anchored to that address, but the "
+                    "node no longer knows it - a Hardhat node keeps no state across "
+                    "restarts, so restart it and re-anchor, or point FACECHAIN_RPC at "
+                    "the original node."
+                ),
+            )
+
         rid_b = self._to_bytes32(rid)
 
         stored_hash, anchored_at, block_number, submitter, exists = contract.functions.getProof(
@@ -508,8 +563,11 @@ class ChainClient:
                 verified=False,
                 exists_onchain=False,
                 detail=(
-                    f"No proof is anchored under record id {rid} in FaceProofRegistry "
-                    f"at {self._contract_address} - never anchored, or the identity changed."
+                    f"No proof is anchored under record id {rid} in FaceProofRegistry at "
+                    f"{address} (chain {self._chain_id}). Either the record's identity fields "
+                    "changed, or the registry was redeployed / the local node restarted - "
+                    "Hardhat state is in-memory and does not survive a restart, so proofs "
+                    "anchored to an earlier node instance are gone. Re-anchor to verify."
                 ),
             )
 
@@ -519,7 +577,7 @@ class ChainClient:
         if verified:
             detail = (
                 f"VERIFIED on {self._backend}: recomputed digest matches the hash anchored in "
-                f"block {int(block_number)} by {submitter}."
+                f"block {int(block_number)} by {submitter} (registry {address})."
             )
         else:
             detail = (
@@ -540,6 +598,30 @@ class ChainClient:
             submitter=str(submitter),
             detail=detail,
         )
+
+    def _bind_contract(self, contract_address: Optional[str]) -> Tuple[Any, str]:
+        """Return ``(contract, address)`` for reads, honouring an override.
+
+        A saved receipt carries the registry address the proof was actually
+        anchored to. Verifying against that address instead of whatever
+        ``deployment.json`` currently says keeps old proofs verifiable across
+        redeployments. Returns ``(None, address)`` when no code lives there.
+        """
+        if not contract_address:
+            return self._contract, self._contract_address
+
+        from web3 import Web3
+
+        try:
+            checksum = Web3.to_checksum_address(contract_address)
+        except Exception:  # noqa: BLE001 - malformed address from a saved file
+            return None, str(contract_address)
+
+        if checksum == self._contract_address:
+            return self._contract, checksum
+        if self._w3.eth.get_code(checksum) in (b"", b"0x", "0x"):
+            return None, checksum
+        return self._w3.eth.contract(address=checksum, abi=self._abi), checksum
 
     # -- misc -------------------------------------------------------------
 

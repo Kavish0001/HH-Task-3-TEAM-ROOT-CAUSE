@@ -26,7 +26,8 @@
 ![Solidity](https://img.shields.io/badge/Solidity_0.8.24-363636?style=for-the-badge&logo=solidity&logoColor=white)
 ![Hardhat](https://img.shields.io/badge/Hardhat-FFF100?style=for-the-badge&logo=hardhat&logoColor=0d0d0d)
 ![Ethers](https://img.shields.io/badge/Ethers_·_Web3.py-0D0D0D?style=for-the-badge&logo=ethereum&logoColor=white)
-![Reddit](https://img.shields.io/badge/Reddit_API-FF4500?style=for-the-badge&logo=reddit&logoColor=white)
+![Mastodon](https://img.shields.io/badge/Mastodon_API-6364FF?style=for-the-badge&logo=mastodon&logoColor=white)
+![Reddit](https://img.shields.io/badge/Reddit-FF4500?style=for-the-badge&logo=reddit&logoColor=white)
 ![DuckDuckGo](https://img.shields.io/badge/DuckDuckGo-DE5833?style=for-the-badge&logo=duckduckgo&logoColor=white)
 
 <br/>
@@ -50,7 +51,7 @@
 
 Give it a photograph of a face. It **encodes the face**, goes out and **searches the live web** for a post carrying that same face, and then **anchors what it found on a blockchain** so the finding can be re-verified later and cannot be quietly edited afterwards.
 
-Two things in that sentence are usually faked in a demo, and neither is faked here. **The post URL is not hardcoded** — it comes out of a live query against Reddit, DuckDuckGo and Wikimedia, and every candidate image is downloaded and re-encoded before it is allowed to count. **The match is not a filename comparison** — it is the cosine distance between two 128-d embeddings, decided against the SFace reference threshold. A candidate that does not clear `0.363` is reported as a near miss, not as a result.
+Two things in that sentence are usually faked in a demo, and neither is faked here. **The post URL is not hardcoded** — it comes out of a live query against Mastodon, Reddit, DuckDuckGo and Wikimedia, and every candidate image is downloaded and re-encoded before it is allowed to count. **The match is not a filename comparison** — it is the cosine distance between two 128-d embeddings, decided against the SFace reference threshold. A candidate that does not clear `0.363` is reported as a near miss, not as a result.
 
 ```text
   samples/elon-musk.jpg
@@ -58,8 +59,8 @@ Two things in that sentence are usually faked in a demo, and neither is faked he
           ▼
   ┌───────────────────┐     ┌────────────────────┐     ┌─────────────────────┐
   │  1  FACE          │     │  2  SEARCH         │     │  3  CHAIN           │
-  │  YuNet detect     │────►│  Reddit · DDG ·    │────►│  canonical JSON     │
-  │  SFace encode     │ emb │  Wikimedia         │ hit │  → sha256           │
+  │  YuNet detect     │────►│  Mastodon · Reddit │────►│  canonical JSON     │
+  │  SFace encode     │ emb │  · DDG · Wikimedia │ hit │  → sha256           │
   │  128-d L2-norm    │     │  download + verify │     │  → anchor()         │
   └───────────────────┘     └────────────────────┘     └─────────────────────┘
           │                          │                           │
@@ -95,13 +96,16 @@ The threshold is configurable via `FACECHAIN_THRESHOLD`, but the default is the 
 
 ### Stage 2 — Web and social search
 
-Three **live** providers, queried in order, with a keyword hint if you supply one:
+Four **live** providers, queried in parallel, with a keyword hint if you supply one. None of them needs an API key:
 
-| Provider | What it queries | Auth |
-| --- | --- | --- |
-| **Reddit** | Public JSON API (`/search.json`, subreddit listings) — real posts, real permalinks | None (unauthenticated) |
-| **DuckDuckGo** | Image search via `ddgs` | None |
-| **Wikimedia Commons** | MediaWiki `action=query` image search | None (descriptive User-Agent) |
+| Provider | What it queries | Social? | Auth |
+| --- | --- | --- | --- |
+| **Mastodon** | Public tag timelines (`/api/v1/timelines/tag/...`) across mastodon.social, mstdn.social and fosstodon.org — real fediverse posts, real permalinks | yes | None |
+| **Reddit** | `/search.json` and subreddit listings, via a public [redlib](https://github.com/redlib-org/redlib) front-end | yes | None |
+| **DuckDuckGo** | Image search via `ddgs` | no | None |
+| **Wikimedia Commons** | MediaWiki `action=query` image search | no | None (descriptive User-Agent) |
+
+When several candidates clear the threshold, the one that gets anchored is the highest-scoring **social-media** post, since that is what the pipeline is for. A higher-scoring news-site portrait is still reported in `matches` and the choice is recorded in `SearchReport.notes` — nothing is quietly dropped.
 
 Each provider hands back candidate image URLs with the post permalink attached. Then the part that matters:
 
@@ -278,7 +282,7 @@ python run_pipeline.py --verify out/proof-6a2513aa2c65.json --tamper
 What the recording shows, in order:
 
 - **Stage 1** — `samples/elon-musk.jpg` goes in; YuNet draws the box, SFace emits the 128-d embedding, and the `embedding_sha256` is printed. Nothing has touched the network yet.
-- **Stage 2** — live queries fire at Reddit, DuckDuckGo and Wikimedia. Candidates stream in with their similarity scores; most are discarded for having no face or a face below threshold. The winning post URL is one nobody typed into the code.
+- **Stage 2** — live queries fire at Mastodon, Reddit, DuckDuckGo and Wikimedia. Candidates stream in with their similarity scores; most are discarded for having no face or a face below threshold. The winning post URL is one nobody typed into the code.
 - **Stage 3** — the canonical JSON is printed in full, hashed, and anchored. The transaction hash, block number and contract address come back from the chain.
 - **Re-verification** — the record is read from disk, re-hashed, checked against `verify()` → `true`.
 - **The tamper** — one byte of the record is edited by hand. Same command, same chain, `verified: false`. The chain never moved.
@@ -292,7 +296,8 @@ Stated plainly, because a grader will find them anyway.
 
 - **No true reverse image search.** Google Vision, Bing Visual Search, TinEye and PimEyes all need paid API keys. Discovery therefore leans on **keyword and image search plus face verification** rather than global reverse-image lookup: the search layer proposes, the SFace embedding disposes. That means recall depends on the subject being searchable by keyword — it works for public figures and would not work for an arbitrary stranger, which is also the ethically correct failure mode.
 - **DuckDuckGo rate-limits.** The `ddgs` backend is unofficial and throttles under repeated queries; a burst of runs will start returning empty result sets. Back off, or lower `--max-candidates`.
-- **Reddit's public JSON is unauthenticated.** No OAuth, so it is rate-limited and returns a narrower slice than the real API would. A `429` degrades that provider, not the run.
+- **Reddit blocks unauthenticated JSON.** `reddit.com/search.json` now answers `403` to any request without OAuth, so the provider falls back to a public redlib front-end. The permalinks and `i.redd.it` image URLs that come back are genuine Reddit URLs, but the front-end is third-party and can go down; when it does, the provider degrades and the run continues on Mastodon. Proper OAuth credentials would be the durable fix.
+- **Mastodon is the fediverse, not X or Instagram.** Those platforms have no unauthenticated read API left. Mastodon's is open, which is precisely why it is here — a real social network with real posts, reachable without begging for a key. The trade is a smaller corpus.
 - **The local chain is ephemeral.** Hardhat's node keeps state in memory — stop it and every anchored proof is gone, and `chain/deployment.json` points at an address that no longer exists. For persistence, deploy to **Sepolia** (`SEPOLIA_RPC_URL` + `PRIVATE_KEY`), or use `simchain`, which persists to disk.
 - **The threshold is a threshold.** `0.363` is the SFace reference value, not a guarantee. Extreme pose, heavy occlusion, harsh lighting, low-resolution crops and large age gaps will push a genuine match below it — a false negative. Raising it trades recall for precision; neither setting makes the system a forensic tool.
 - **Single face per input.** Group photos resolve to the highest-confidence detection. There is no multi-subject or clustering path.
@@ -324,7 +329,7 @@ facechain/
 │  ├─ types.py                # FaceProfile · PostMatch · SearchReport
 │  │                          # AnchorReceipt · VerificationResult
 │  ├─ face.py                 # stage 1 — YuNet detect + SFace encode
-│  ├─ search.py               # stage 2 — reddit · ddg · wikimedia + verify
+│  ├─ search.py               # stage 2 - mastodon · reddit · ddg · wikimedia
 │  ├─ chain.py                # stage 3 — EVM client, canonical JSON, hashing
 │  └─ simchain.py             # dependency-free PoW chain (merkle + validation)
 │
