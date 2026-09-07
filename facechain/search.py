@@ -2,7 +2,8 @@
 
 The pipeline is deliberately provider-agnostic and evidence-driven:
 
-    build_queries()  ->  live providers (reddit / ddg-images / wikimedia)
+    build_queries()  ->  live providers (reddit / mastodon / linkedin /
+                                         ddg-images / wikimedia / x)
                      ->  concurrent image download + sha256 dedupe
                      ->  face detection + embedding (stage 1)
                      ->  cosine similarity vs the input face
@@ -42,14 +43,22 @@ from facechain.types import FaceProfile, PostMatch, SearchReport
 ProgressFn = Callable[[str], None]
 
 # Providers, in the order they are fanned out.
-ALL_PROVIDERS: List[str] = ["reddit", "mastodon", "ddg_images", "wikimedia"]
+ALL_PROVIDERS: List[str] = [
+    "reddit",
+    "mastodon",
+    "linkedin",
+    "ddg_images",
+    "wikimedia",
+    "x",
+]
 
 # Platforms that count as "social media" for the headline result. The task is
 # to surface a social-media post, so a social hit wins best_match even when a
 # news-site portrait scores marginally higher; the full ranking is preserved in
-# SearchReport.matches either way.
-SOCIAL_PLATFORMS = {"mastodon", "reddit"}
-SOCIAL_PROVIDERS = {"reddit", "mastodon"}
+# SearchReport.matches either way. A LinkedIn profile photo and an X avatar are
+# both social-media identity hits, so they are eligible to win best_match too.
+SOCIAL_PLATFORMS = {"mastodon", "reddit", "linkedin", "x"}
+SOCIAL_PROVIDERS = {"reddit", "mastodon", "linkedin", "x"}
 
 # Fediverse bridges republish other sites into the network. The posts are real
 # federated statuses, but their canonical URL points back at the mirrored
@@ -92,6 +101,37 @@ REDDIT_MIRRORS: List[str] = [
     "https://redlib.catsarch.com",
     "https://redlib.freedit.eu",
 ]
+
+# --- Identity-search providers (LinkedIn / X) ----------------------------
+# Both are found the same way: a DDG *text* search with a site: filter (the
+# image endpoint silently ignores site:), then one fetch of each public page to
+# read its Open Graph photo. Nothing behind a login is ever touched.
+#
+# LinkedIn answers 999 to a browser User-Agent but 200 to a link-preview
+# crawler, which is exactly what we are: we read the public og:image and
+# nothing else. X answers 200 for profiles but strips Open Graph from status
+# pages for unauthenticated crawlers, so posts yield no image at all.
+CRAWLER_UA = (
+    "facebookexternalhit/1.1 (+http://www.facebook.com/externalhit_uatext.php)"
+)
+
+# Public profile pages fetched per query, per provider. Deliberately small: one
+# page per candidate identity, never a crawl.
+LINKEDIN_PROFILE_CAP = 6
+X_PAGE_CAP = 8
+
+# Words a hint query picks up in build_queries(); stripped before deciding
+# whether two queries describe the same identity.
+_IDENTITY_SUFFIXES = {
+    "reddit", "portrait", "photo", "photos", "photograph", "pic", "pics",
+    "selfie", "headshot", "profile", "linkedin", "twitter", "x", "instagram",
+}
+# If any of these survive the strip the query is a generic people-photo probe,
+# not a name, and an identity search on it would be noise.
+_GENERIC_TOKENS = {
+    "portrait", "photo", "photos", "person", "face", "selfie", "headshot",
+    "official", "photograph", "people",
+}
 
 IMAGE_EXTS = (".jpg", ".jpeg", ".png", ".webp", ".bmp")
 MAX_IMAGE_BYTES = 8 * 1024 * 1024
@@ -186,6 +226,85 @@ def _get(url: str, *, params: Optional[Dict[str, Any]] = None,
     if last_exc is not None:
         _log_debug(f"GET failed {url}: {last_exc}")
     return None
+
+
+_CRAWLER_SESSION: Optional[requests.Session] = None
+
+
+def _crawler_session() -> requests.Session:
+    """Session identifying us as a link-preview crawler.
+
+    Only used for sites that serve Open Graph tags to crawlers and refuse a
+    browser UA (LinkedIn answers HTTP 999 to config.USER_AGENT). This is the
+    documented public-preview surface - no cookies, no auth, no login walls.
+    """
+    global _CRAWLER_SESSION
+    if _CRAWLER_SESSION is None:
+        s = requests.Session()
+        s.headers.update(
+            {
+                "User-Agent": CRAWLER_UA,
+                "Accept": "text/html,application/xhtml+xml;q=0.9,*/*;q=0.8",
+                "Accept-Language": "en-US,en;q=0.9",
+            }
+        )
+        _CRAWLER_SESSION = s
+    return _CRAWLER_SESSION
+
+
+_OG_KEYS = ("og:image", "og:image:secure_url", "og:title", "og:description")
+_OG_CACHE: Dict[str, tuple[int, Dict[str, str]]] = {}
+_OG_CACHE_LOCK = threading.Lock()
+
+
+def _meta_content(page: str, key: str) -> str:
+    """Value of a <meta property|name="key" content="..."> tag, either order."""
+    esc = re.escape(key)
+    patterns = (
+        r'<meta[^>]+(?:property|name)\s*=\s*["\']' + esc
+        + r'["\'][^>]*?content\s*=\s*["\']([^"\']*)["\']',
+        r'<meta[^>]+content\s*=\s*["\']([^"\']*)["\'][^>]*?(?:property|name)\s*=\s*["\']'
+        + esc + r'["\']',
+    )
+    for pat in patterns:
+        m = re.search(pat, page, re.I)
+        if m and m.group(1).strip():
+            return html.unescape(m.group(1)).strip()
+    return ""
+
+
+def _fetch_og(url: str) -> tuple[int, Dict[str, str]]:
+    """Fetch one public page as a crawler and read its Open Graph tags.
+
+    Returns ``(status_code, tags)``; status 0 means the request never landed.
+    Cached per URL so the overlapping queries build_queries() produces never
+    refetch the same profile, and so a run stays gentle on the host.
+    """
+    with _OG_CACHE_LOCK:
+        hit = _OG_CACHE.get(url)
+    if hit is not None:
+        return hit
+
+    status = 0
+    tags: Dict[str, str] = {}
+    try:
+        _polite(url)
+        resp = _crawler_session().get(url, timeout=config.HTTP_TIMEOUT)
+        status = resp.status_code
+        if status == 200:
+            page = resp.text[:400_000]
+            for key in _OG_KEYS:
+                value = _meta_content(page, key)
+                if value:
+                    tags[key] = value
+        resp.close()
+    except Exception as exc:  # noqa: BLE001 - providers must never crash the run
+        _log_debug(f"og fetch failed {url}: {exc}")
+
+    result = (status, tags)
+    with _OG_CACHE_LOCK:
+        _OG_CACHE[url] = result
+    return result
 
 
 def _log_debug(msg: str) -> None:
@@ -636,11 +755,283 @@ def _search_wikimedia(query: str, limit: int = 20) -> List[Candidate]:
     return out
 
 
+# --------------------------------------------------------------------------
+# Identity search: LinkedIn and X / Twitter
+# --------------------------------------------------------------------------
+
+# Results are memoised per (provider, identity) so the four queries
+# build_queries() derives from one hint cost one site: search and one set of
+# page fetches instead of four.
+_IDENTITY_CACHE: Dict[tuple[str, str], List[Candidate]] = {}
+
+_RE_LINKEDIN_PROFILE = re.compile(
+    r"https?://(?:[a-z]{2,3}\.)?linkedin\.com/in/([A-Za-z0-9\-_%.]{2,100})", re.I
+)
+_RE_X_URL = re.compile(
+    r"https?://(?:www\.|mobile\.)?(?:x|twitter)\.com/"
+    r"([A-Za-z0-9_]{1,15})(/status/\d+)?",
+    re.I,
+)
+# Handles that are site furniture, not people.
+_X_RESERVED = {
+    "home", "search", "explore", "i", "intent", "share", "hashtag", "settings",
+    "login", "signup", "about", "privacy", "tos", "notifications", "messages",
+}
+
+
+def _identity_core(query: str) -> str:
+    """'Sundar Pichai reddit' -> 'sundar pichai'; '' if it is not a name."""
+    tokens = [t for t in re.split(r"\s+", query.lower().strip()) if t]
+    while tokens and tokens[-1].strip(".,\"'") in _IDENTITY_SUFFIXES:
+        tokens.pop()
+    if not tokens or len(tokens) > 5:
+        return ""
+    if any(t.strip(".,\"'") in _GENERIC_TOKENS for t in tokens):
+        return ""  # a generic people-photo probe, not an identity
+    return " ".join(tokens)
+
+
+def _ddg_text(query: str, limit: int) -> List[Dict[str, Any]]:
+    """DDG *text* search. Unlike the image endpoint it honours `site:`."""
+    DDGS = _ddgs_class()
+    try:
+        with DDGS() as ddgs:
+            return list(ddgs.text(query=query, max_results=limit) or [])
+    except Exception as exc:  # noqa: BLE001
+        _log_debug(f"ddg text failed for {query!r}: {type(exc).__name__}: {exc}")
+        return []
+
+
+def _ddg_urls(queries: Sequence[str], limit: int) -> List[str]:
+    """Run site: text searches until one yields hits; return unique hrefs."""
+    urls: List[str] = []
+    seen: set[str] = set()
+    for q in queries:
+        for row in _ddg_text(q, limit):
+            href = (row.get("href") or row.get("url") or row.get("link") or "").strip()
+            if not href or href in seen:
+                continue
+            seen.add(href)
+            urls.append(href)
+        if urls:
+            break  # first pass produced something; skip the looser fallback
+    return urls
+
+
+def _og_image(tags: Dict[str, str]) -> str:
+    url = tags.get("og:image") or tags.get("og:image:secure_url") or ""
+    return url if url.lower().startswith(("http://", "https://")) else ""
+
+
+def _search_linkedin(query: str, limit: int = 10) -> List[Candidate]:
+    """LinkedIn public profiles found via a `site:linkedin.com/in` text search.
+
+    For every profile URL we fetch exactly one public page (as a link-preview
+    crawler, because LinkedIn answers 999 to anything else) and read its
+    `og:image`, which is the profile photo on media.licdn.com. Nothing behind a
+    login is touched and no connection/network page is followed; the profile is
+    only ever reported later if its *face embedding* clears the threshold.
+    """
+    core = _identity_core(query)
+    if not core:
+        return []
+    key = ("linkedin", core)
+    cached = _IDENTITY_CACHE.get(key)
+    if cached is not None:
+        return list(cached)
+    _IDENTITY_CACHE[key] = []  # guard against re-running on a failed pass
+
+    found = _ddg_urls(
+        [
+            f'site:linkedin.com/in "{core}"',
+            f"site:linkedin.com/in {core}",
+        ],
+        max(limit, 10),
+    )
+
+    profiles: List[str] = []
+    slugs: Dict[str, str] = {}
+    for href in found:
+        m = _RE_LINKEDIN_PROFILE.search(href)
+        if not m:
+            continue
+        url = f"https://www.linkedin.com/in/{m.group(1).rstrip('/')}"
+        if url not in slugs:
+            slugs[url] = m.group(1)
+            profiles.append(url)
+
+    if not profiles:
+        _PROVIDER_NOTES.append(
+            f"linkedin: site:linkedin.com/in search for '{core}' returned no "
+            f"public profile URLs ({len(found)} results seen)"
+        )
+        return []
+
+    out: List[Candidate] = []
+    blocked: Dict[int, int] = {}
+    fetched = 0
+    for url in profiles[:LINKEDIN_PROFILE_CAP]:
+        if fetched:
+            time.sleep(0.5)  # LinkedIn 429s a fast run of profile fetches
+        status, tags = _fetch_og(url)
+        fetched += 1
+        if status != 200:
+            blocked[status] = blocked.get(status, 0) + 1
+            continue
+        image_url = _og_image(tags)
+        if not image_url or "static.licdn.com" in image_url.lower():
+            continue  # no photo, or the generic "no picture" ghost avatar
+        title = tags.get("og:title", "")
+        for tail in (" | LinkedIn", " - LinkedIn", " | Linkedin"):
+            if title.endswith(tail):
+                title = title[: -len(tail)].strip()
+        out.append(
+            Candidate(
+                platform="linkedin",
+                post_url=url,
+                image_url=image_url,
+                title=title[:300],
+                author=slugs.get(url, ""),
+                query=query,
+                discovered_via="identity-search",
+                metadata={
+                    "profile_slug": slugs.get(url, ""),
+                    "source": "og:image on the public profile page",
+                    "og_description": tags.get("og:description", "")[:200],
+                },
+            )
+        )
+
+    if blocked:
+        detail = ", ".join(
+            f"HTTP {code or 'no response'} x{n}" for code, n in sorted(blocked.items())
+        )
+        _PROVIDER_NOTES.append(
+            f"linkedin: profile fetch blocked ({detail}) for "
+            f"{sum(blocked.values())} of {fetched} profiles"
+        )
+    _PROVIDER_NOTES.append(
+        f"linkedin: {len(profiles)} public profile URLs found for '{core}', "
+        f"{fetched} fetched (cap {LINKEDIN_PROFILE_CAP}/query), "
+        f"{len(out)} exposed an og:image profile photo"
+    )
+    _IDENTITY_CACHE[key] = list(out)
+    return out
+
+
+def _upgrade_x_avatar(url: str) -> str:
+    """pbs.twimg.com serves several sizes; ask for the largest square."""
+    for small in ("_200x200", "_normal", "_bigger", "_mini", "_reasonably_small"):
+        if small in url:
+            return url.replace(small, "_400x400")
+    return url
+
+
+def _search_x(query: str, limit: int = 10) -> List[Candidate]:
+    """X / Twitter identity search - honest about how little it can return.
+
+    A `site:x.com` text search does find real profile and status URLs, but X
+    strips Open Graph from status pages for unauthenticated crawlers, so a post
+    exposes no image at all; only profile pages carry an `og:image`, and that
+    avatar is frequently not a photograph of a face. A candidate is emitted only
+    when an image was actually obtained - a candidate with no image could never
+    be face-verified and must never surface as a result.
+    """
+    core = _identity_core(query)
+    if not core:
+        return []
+    key = ("x", core)
+    cached = _IDENTITY_CACHE.get(key)
+    if cached is not None:
+        return list(cached)
+    _IDENTITY_CACHE[key] = []
+
+    found = _ddg_urls([f'site:x.com "{core}"'], max(limit, 10))
+    found += _ddg_urls([f'site:twitter.com "{core}"'], max(limit, 10))
+
+    pages: List[tuple[str, str, bool]] = []  # (url, handle, is_status)
+    seen: set[str] = set()
+    for href in found:
+        m = _RE_X_URL.search(href)
+        if not m:
+            continue
+        handle = m.group(1)
+        if handle.lower() in _X_RESERVED:
+            continue
+        is_status = bool(m.group(2))
+        url = f"https://x.com/{handle}{m.group(2) or ''}"
+        if url in seen:
+            continue
+        seen.add(url)
+        pages.append((url, handle, is_status))
+
+    # Profiles first: they carry a real avatar; status pages only ever expose a
+    # generated card, when they expose anything at all.
+    pages.sort(key=lambda row: row[2])
+
+    if not pages:
+        _PROVIDER_NOTES.append(
+            f"x: site:x.com / site:twitter.com search for '{core}' returned no "
+            f"usable URLs ({len(found)} results seen; the text endpoint also "
+            f"rate-limits after repeated queries)"
+        )
+        return []
+
+    out: List[Candidate] = []
+    with_og = 0
+    placeholders = 0
+    fetched = 0
+    for url, handle, is_status in pages[:X_PAGE_CAP]:
+        status, tags = _fetch_og(url)
+        fetched += 1
+        if status != 200:
+            continue
+        image_url = _og_image(tags)
+        if not image_url:
+            continue
+        with_og += 1
+        if "abs.twimg.com" in image_url.lower():
+            # X's generic "no preview" placeholder, not a photograph.
+            placeholders += 1
+            continue
+        out.append(
+            Candidate(
+                platform="x",
+                post_url=url,
+                image_url=_upgrade_x_avatar(image_url),
+                title=(tags.get("og:title", ""))[:300],
+                author=f"@{handle}",
+                query=query,
+                discovered_via="identity-search",
+                metadata={
+                    "handle": handle,
+                    "page_type": "status" if is_status else "profile",
+                    "source": "og:image",
+                },
+            )
+        )
+
+    statuses = sum(1 for _, _, is_status in pages if is_status)
+    _PROVIDER_NOTES.append(
+        f"x: {len(pages)} URLs found for '{core}' "
+        f"({len(pages) - statuses} profiles, {statuses} status pages), "
+        f"{fetched} fetched, {with_og} exposed an og:image "
+        f"({placeholders} of those were X's generic placeholder, "
+        f"{len(out)} kept) - X strips real Open Graph media from status pages for "
+        f"unauthenticated crawlers, so only profile avatars and generated post "
+        f"cards are reachable and those frequently contain no detectable face"
+    )
+    _IDENTITY_CACHE[key] = list(out)
+    return out
+
+
 _PROVIDER_FNS: Dict[str, Callable[[str], List[Candidate]]] = {
     "reddit": _search_reddit,
     "mastodon": _search_mastodon,
+    "linkedin": _search_linkedin,
     "ddg_images": _search_ddg_images,
     "wikimedia": _search_wikimedia,
+    "x": _search_x,
 }
 
 

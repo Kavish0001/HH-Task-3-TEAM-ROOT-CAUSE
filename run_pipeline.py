@@ -25,6 +25,20 @@ from facechain.types import FaceProfile, PostMatch, SearchReport
 SCHEMA = "facechain.proof/v1"
 
 
+def _provider_choices() -> List[str]:
+    """Read the provider list off the search module so the two cannot drift.
+
+    Hardcoding these went stale the moment a provider was added; importing
+    lazily keeps --help working even if the search stage fails to import.
+    """
+    try:
+        from facechain.search import ALL_PROVIDERS
+
+        return list(ALL_PROVIDERS)
+    except Exception:
+        return ["reddit", "mastodon", "linkedin", "ddg_images", "wikimedia", "x"]
+
+
 # --- Record construction -------------------------------------------------
 
 def build_record(profile: FaceProfile, match: PostMatch,
@@ -314,7 +328,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     ap.add_argument("--max-candidates", type=int, default=config.MAX_CANDIDATES,
                     help="how many web candidates to face-match")
     ap.add_argument("--provider", action="append", default=None,
-                    choices=["reddit", "ddg", "wikimedia"],
+                    choices=_provider_choices(),
                     help="restrict to one or more search providers")
     ap.add_argument("--verify", metavar="PROOF_JSON",
                     help="re-verify a saved proof against the chain and exit")

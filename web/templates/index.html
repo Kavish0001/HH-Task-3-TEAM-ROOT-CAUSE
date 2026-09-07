@@ -4,52 +4,67 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>FaceChain &middot; face &rarr; web &rarr; chain</title>
+<link rel="stylesheet" href="/static/theme.css">
 <link rel="stylesheet" href="/static/app.css">
 </head>
-<body>
+<body class="brushed">
 
-<header class="hdr">
-  <div class="hdr-l">
-    <span class="mark">FACE<span class="mark-c">CHAIN</span></span>
-    <span class="tag">face scan &rarr; live web/social search &rarr; blockchain proof</span>
-  </div>
+<header class="hdr brushed">
+  <span class="mark">FaceChain<i class="marker"></i></span>
+  <nav class="hdr-nav">
+    <span>FACE SCAN</span>
+    <span>WEB / SOCIAL SEARCH</span>
+    <span>BLOCKCHAIN PROOF</span>
+  </nav>
   <div class="hdr-r">
     <span class="chip" id="chip-models">models &middot; &hellip;</span>
     <span class="chip" id="chip-chain">chain &middot; &hellip;</span>
+    <a class="ghost" href="/">HOME</a>
   </div>
 </header>
+
+<!-- thin dotted band: the run status line -->
+<div class="crumb grid-ground">
+  <span class="crumb-t">FACECHAIN / PIPELINE / CONSOLE</span>
+  <span class="runstate" id="runstate">idle</span>
+</div>
 
 <main class="grid">
 
   <!-- ---------------- LEFT: input ---------------- -->
   <section class="panel col-in">
-    <h2 class="panel-h">INPUT</h2>
+    <h2 class="panel-h"><span class="eyebrow">INPUT</span></h2>
+
+    <div class="lead">
+      <h1>Pipeline console</h1>
+      <p>One face in, a scored web match and a signed on-chain record out.</p>
+    </div>
 
     <div class="drop" id="drop">
       <img id="drop-thumb" alt="">
       <div class="drop-msg" id="drop-msg">
         <b>DROP A FACE IMAGE</b>
-        <span>or click to browse &middot; jpg / png / webp</span>
+        <span>click to browse &middot; jpg / png / webp</span>
       </div>
       <input type="file" id="file" accept="image/*" hidden>
     </div>
 
-    <div class="lbl">BUNDLED SAMPLES</div>
+    <div class="lbl eyebrow">BUNDLED SAMPLES</div>
     <div class="samples" id="samples">
       {% for s in samples %}
       <button class="sample" type="button" data-name="{{ s.name }}" data-hint="{{ s.hint }}">
-        <img src="/sample/{{ s.name }}" alt="{{ s.label }}">
-        <span>{{ s.label }}</span>
+        <span class="sample-img"><img src="/sample/{{ s.name }}" alt="{{ s.label }}"></span>
+        <span class="sample-cap">{{ s.label }}</span>
       </button>
       {% endfor %}
     </div>
 
-    <div class="lbl">SEARCH HINT</div>
+    <div class="lbl eyebrow">SEARCH HINT</div>
     <input class="in" type="text" id="hint" placeholder="e.g. Elon Musk">
 
     <div class="row3">
       <div>
-        <div class="lbl">BACKEND</div>
+        <div class="lbl eyebrow">BACKEND</div>
         <select class="in" id="backend">
           <option value="auto">auto</option>
           <option value="evm">evm</option>
@@ -57,19 +72,18 @@
         </select>
       </div>
       <div>
-        <div class="lbl">THRESHOLD</div>
+        <div class="lbl eyebrow">THRESHOLD</div>
         <input class="in" type="number" id="threshold" step="0.001" min="0" max="1"
                value="{{ '%.3f'|format(default_threshold) }}">
       </div>
       <div>
-        <div class="lbl">MAX CAND.</div>
+        <div class="lbl eyebrow">MAX CAND.</div>
         <input class="in" type="number" id="maxcand" step="1" min="1" max="200"
                value="{{ default_max }}">
       </div>
     </div>
 
     <button class="run" id="run" type="button">RUN PIPELINE</button>
-    <div class="runstate" id="runstate">idle</div>
   </section>
 
   <!-- ---------------- RIGHT: stages ---------------- -->
@@ -77,21 +91,23 @@
 
     <!-- stage 1 -->
     <article class="panel card" id="card-face">
-      <h2 class="panel-h"><span class="idx">01</span> FACE SCAN
-        <span class="st" id="st-face">idle</span></h2>
+      <h2 class="panel-h">
+        <span class="eyebrow">STAGE 1 &mdash; FACE SCAN</span>
+        <span class="st" id="st-face">idle</span>
+      </h2>
       <div class="card-body face-body">
         <div class="canvas-wrap" id="face-canvas-wrap">
           <canvas id="face-canvas"></canvas>
-          <div class="ph" id="face-ph">awaiting image</div>
+          <div class="ph" id="face-ph">AWAITING IMAGE</div>
         </div>
         <dl class="kv" id="face-kv">
-          <dt>confidence</dt><dd id="f-conf">-</dd>
-          <dt>faces found</dt><dd id="f-faces">-</dd>
-          <dt>bbox</dt><dd id="f-bbox">-</dd>
-          <dt>detector</dt><dd id="f-det">-</dd>
-          <dt>encoder</dt><dd id="f-enc">-</dd>
-          <dt>embedding</dt><dd id="f-dim">-</dd>
-          <dt>embedding sha256</dt><dd class="wrap" id="f-emb">-</dd>
+          <dt>confidence</dt><dd class="figure" id="f-conf">-</dd>
+          <dt>faces found</dt><dd class="figure" id="f-faces">-</dd>
+          <dt>bbox</dt><dd class="figure" id="f-bbox">-</dd>
+          <dt>detector</dt><dd class="figure" id="f-det">-</dd>
+          <dt>encoder</dt><dd class="figure" id="f-enc">-</dd>
+          <dt>embedding</dt><dd class="figure" id="f-dim">-</dd>
+          <dt>embedding sha256</dt><dd class="figure wrap" id="f-emb">-</dd>
         </dl>
       </div>
       <div class="err" id="err-face" hidden></div>
@@ -99,19 +115,66 @@
 
     <!-- stage 2 -->
     <article class="panel card" id="card-search">
-      <h2 class="panel-h"><span class="idx">02</span> WEB / SOCIAL SEARCH
-        <span class="st" id="st-search">idle</span></h2>
+      <h2 class="panel-h">
+        <span class="eyebrow">STAGE 2 &mdash; WEB / SOCIAL SEARCH</span>
+        <span class="st" id="st-search">idle</span>
+      </h2>
+
+      <!-- KPI strip: equal cells, hairline rules, one accent underline -->
       <div class="counters" id="counters">
-        <span>seen <b id="c-seen">0</b></span>
-        <span>downloaded <b id="c-dl">0</b></span>
-        <span>with faces <b id="c-faces">0</b></span>
-        <span>above thr <b id="c-above">0</b></span>
-        <span>providers <b id="c-prov">-</b></span>
+        <div class="kpi">
+          <svg class="kpi-ic" viewBox="0 0 12 12" aria-hidden="true">
+            <circle cx="6" cy="6" r="4.2"/><circle cx="6" cy="6" r="1.1"/>
+          </svg>
+          <span class="kpi-k">SEEN</span>
+          <b class="kpi-v" id="c-seen">0</b>
+          <i class="kpi-u"></i>
+          <span class="kpi-c">candidates returned</span>
+        </div>
+        <div class="kpi">
+          <svg class="kpi-ic" viewBox="0 0 12 12" aria-hidden="true">
+            <path d="M6 1.5v6M3.4 5.2 6 7.8l2.6-2.6M1.8 10.2h8.4"/>
+          </svg>
+          <span class="kpi-k">DOWNLOADED</span>
+          <b class="kpi-v" id="c-dl">0</b>
+          <i class="kpi-u"></i>
+          <span class="kpi-c">images fetched</span>
+        </div>
+        <div class="kpi">
+          <svg class="kpi-ic" viewBox="0 0 12 12" aria-hidden="true">
+            <rect x="1.6" y="1.6" width="8.8" height="8.8"/>
+            <circle cx="4.4" cy="4.8" r="0.7"/><circle cx="7.6" cy="4.8" r="0.7"/>
+            <path d="M4.2 7.8h3.6"/>
+          </svg>
+          <span class="kpi-k">WITH FACES</span>
+          <b class="kpi-v" id="c-faces">0</b>
+          <i class="kpi-u"></i>
+          <span class="kpi-c">encodable crops</span>
+        </div>
+        <div class="kpi kpi-lead">
+          <svg class="kpi-ic" viewBox="0 0 12 12" aria-hidden="true">
+            <path d="M1.6 8.6 4.6 5.6l2.2 2.2 3.6-4.4M1.8 10.6h8.4"/>
+          </svg>
+          <span class="kpi-k">ABOVE THRESHOLD</span>
+          <b class="kpi-v" id="c-above">0</b>
+          <i class="kpi-u"></i>
+          <span class="kpi-c">cleared the cut</span>
+        </div>
+        <div class="kpi kpi-text">
+          <svg class="kpi-ic" viewBox="0 0 12 12" aria-hidden="true">
+            <path d="M1.8 3h8.4M1.8 6h8.4M1.8 9h8.4"/>
+          </svg>
+          <span class="kpi-k">PROVIDERS</span>
+          <b class="kpi-v" id="c-prov">-</b>
+          <i class="kpi-u"></i>
+          <span class="kpi-c">live search sources</span>
+        </div>
       </div>
+
       <div class="card-body search-body">
         <div class="logbox" id="log"></div>
         <div class="results" id="results">
-          <div class="ph">candidates will stream in here</div>
+          <div class="ph">CANDIDATES WILL STREAM IN HERE</div>
         </div>
       </div>
       <div class="notes" id="notes" hidden></div>
@@ -120,26 +183,28 @@
 
     <!-- stage 3 -->
     <article class="panel card" id="card-chain">
-      <h2 class="panel-h"><span class="idx">03</span> BLOCKCHAIN ANCHOR + VERIFY
-        <span class="st" id="st-chain">idle</span></h2>
+      <h2 class="panel-h">
+        <span class="eyebrow">STAGE 3 &mdash; BLOCKCHAIN ANCHOR + VERIFY</span>
+        <span class="st" id="st-chain">idle</span>
+      </h2>
       <div class="card-body chain-body">
         <div class="chain-l">
-          <div class="lbl">CANONICAL JSON (hashed)</div>
+          <div class="lbl eyebrow">CANONICAL JSON (HASHED)</div>
           <pre id="canonical">-</pre>
           <dl class="kv">
-            <dt>record id</dt><dd class="wrap" id="ch-rid">-</dd>
-            <dt>record hash</dt><dd class="wrap" id="ch-rhash">-</dd>
+            <dt>record id</dt><dd class="figure wrap" id="ch-rid">-</dd>
+            <dt>record hash</dt><dd class="figure wrap" id="ch-rhash">-</dd>
           </dl>
         </div>
         <div class="chain-r">
-          <div class="lbl">ON-CHAIN RECEIPT</div>
+          <div class="lbl eyebrow">ON-CHAIN RECEIPT</div>
           <dl class="kv">
-            <dt>backend</dt><dd id="r-backend">-</dd>
-            <dt>chain id</dt><dd id="r-chain">-</dd>
-            <dt>contract</dt><dd class="wrap" id="r-contract">-</dd>
-            <dt>tx hash</dt><dd class="wrap" id="r-tx">-</dd>
-            <dt>block</dt><dd id="r-block">-</dd>
-            <dt>gas used</dt><dd id="r-gas">-</dd>
+            <dt>backend</dt><dd class="figure" id="r-backend">-</dd>
+            <dt>chain id</dt><dd class="figure" id="r-chain">-</dd>
+            <dt>contract</dt><dd class="figure wrap" id="r-contract">-</dd>
+            <dt>tx hash</dt><dd class="figure wrap" id="r-tx">-</dd>
+            <dt>block</dt><dd class="figure" id="r-block">-</dd>
+            <dt>gas used</dt><dd class="figure" id="r-gas">-</dd>
           </dl>
           <div class="verdict" id="v-verify">
             <span class="v-t">VERIFY</span>

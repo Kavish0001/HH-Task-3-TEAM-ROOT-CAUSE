@@ -1,0 +1,419 @@
+/* ===========================================================================
+   FaceChain - landing page
+   ===========================================================================
+
+   Layers, back to front:
+
+     -3  body.grid-ground   the machinist's dot grid
+     -2  svg.linework       engineering-drawing furniture, almost invisible
+     -1  canvas#scene       the GLB props, desaturated and cropped by the frame
+      0  div.scrim          a radial hole punched over the copy column
+      1  header / main / footer
+
+   Every colour, face, radius and rule comes from theme.css. Nothing new is
+   invented here; the accent appears exactly four times on this page - the
+   wordmark underline, the live node in the diagram, the threshold figure, and
+   the run button.
+   ========================================================================= */
+
+html { height: 100%; }
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  font-family: var(--font-sans);
+  color: var(--ink);
+  overflow-x: hidden;
+}
+
+/* ---- Layer -2: technical line art --------------------------------------- */
+.linework {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: -2;
+  pointer-events: none;
+}
+.lw {
+  fill: none;
+  stroke: var(--steel-600);
+  stroke-width: 1.1;
+  opacity: 0.30;
+  vector-effect: non-scaling-stroke;
+}
+.lw-hair { opacity: 0.6; }
+
+/* ---- Layer -1: the 3D props --------------------------------------------- */
+/* Desaturated and held well back so they read as objects in the room rather
+   than as artwork competing with the headline. */
+#scene {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  z-index: -1;
+  display: block;
+  pointer-events: none;
+  opacity: 0.50;
+  filter: saturate(0.18) contrast(0.92);
+}
+
+/* ---- Layer 0: the scrim ------------------------------------------------- */
+/* An off-centre radial pool of the page ground, so the copy column always has
+   a quiet field behind it however the props happen to drift. */
+.scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(58% 62% at 26% 48%,
+      rgba(13, 13, 13, 0.94) 0%,
+      rgba(13, 13, 13, 0.86) 38%,
+      rgba(13, 13, 13, 0.32) 72%,
+      rgba(13, 13, 13, 0) 100%),
+    linear-gradient(to bottom,
+      rgba(13, 13, 13, 0.72) 0%,
+      rgba(13, 13, 13, 0) 16%,
+      rgba(13, 13, 13, 0) 76%,
+      rgba(13, 13, 13, 0.86) 100%);
+}
+
+/* =========================================================================
+   Header - slim, a hairline beneath it, no fill of its own
+   ========================================================================= */
+.hdr {
+  position: relative;
+  z-index: 2;
+  flex: none;
+  height: 64px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 0 clamp(20px, 3.4vw, 48px);
+  border-bottom: var(--hair);
+  background: rgba(13, 13, 13, 0.72);
+  backdrop-filter: blur(6px);
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  text-decoration: none;
+  color: inherit;
+}
+.brand-icon { width: 26px; height: 26px; display: block; flex: none; }
+.brand-icon svg { width: 100%; height: 100%; display: block; }
+
+.brand-t { display: inline-flex; flex-direction: column; gap: 4px; }
+.wordmark {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 19px;
+  letter-spacing: -0.02em;
+  line-height: 1;
+  color: var(--ink);
+}
+/* The short accent underline. 28px, under the wordmark only. */
+.brand-underline {
+  display: block;
+  width: 28px;
+  height: 2px;
+  background: var(--signal);
+}
+
+.tagline {
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.18em;
+  color: var(--ink-faint);
+  margin-top: 2px;
+}
+
+.nav {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 18px;
+}
+.nav-a {
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  color: var(--ink-dim);
+  text-decoration: none;
+  transition: color 0.12s linear;
+}
+.nav-a:hover { color: var(--ink); }
+
+.ghost-btn {
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  color: var(--ink);
+  text-decoration: none;
+  border: var(--hair);
+  border-radius: 0;
+  padding: 9px 18px;
+  line-height: 1;
+  transition: border-color 0.12s linear, color 0.12s linear;
+}
+.ghost-btn:hover { border-color: var(--steel-500); }
+
+/* The chain pill. Grey dot until /health says the backend is up. */
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  color: var(--ink-faint);
+  border: var(--hair);
+  border-radius: var(--radius);
+  padding: 6px 10px;
+  max-width: 300px;
+  white-space: nowrap;
+  overflow: hidden;
+}
+.pill .dot {
+  width: 6px; height: 6px; flex: none;
+  border-radius: 50%;
+  background: var(--steel-500);
+}
+.pill.ok { color: var(--ink-dim); }
+.pill.ok .dot { background: var(--signal); }
+
+/* =========================================================================
+   Main
+   ========================================================================= */
+.wrap {
+  position: relative;
+  z-index: 1;
+  flex: 1 1 auto;
+  width: 100%;
+  max-width: 1440px;
+  margin: 0 auto;
+  padding: clamp(22px, 4vh, 56px) clamp(20px, 3.4vw, 48px) 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: clamp(26px, 4.2vh, 52px);
+}
+
+/* ---- Hero: asymmetric, copy left ---------------------------------------- */
+.hero {
+  display: grid;
+  grid-template-columns: minmax(0, 45fr) minmax(0, 55fr);
+  align-items: center;
+  gap: clamp(32px, 5vw, 80px);
+}
+
+.eyebrow { margin: 0 0 20px; }
+
+.head {
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: clamp(38px, 4.4vw, 64px);
+  line-height: 1.05;
+  letter-spacing: -0.028em;
+  color: var(--ink);
+}
+
+.lede {
+  margin: 20px 0 0;
+  max-width: 50ch;
+  font-size: 14.5px;
+  line-height: 1.6;
+  color: var(--ink-dim);
+}
+
+.cta-row {
+  margin-top: 28px;
+  display: flex;
+  align-items: stretch;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.cta,
+.ghost {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-decoration: none;
+  border-radius: 0;             /* sharp corners, both buttons */
+  padding: 15px 28px;
+  line-height: 1;
+}
+.cta {
+  background: var(--signal);
+  color: var(--signal-ink);
+  border: 1px solid var(--signal);
+  transition: filter 0.12s linear;
+}
+.cta:hover { filter: brightness(1.12); }
+.ghost {
+  color: var(--ink);
+  border: var(--hair);
+  font-weight: 500;
+  transition: border-color 0.12s linear;
+}
+.ghost:hover { border-color: var(--steel-500); }
+
+/* ---- Hero right: the diagram panel -------------------------------------- */
+/* Capped so the drawing never becomes the tallest thing on the page - the
+   hero has to clear 1280x800 without a scrollbar. */
+.hero-r { margin: 0 0 0 auto; width: 100%; max-width: 560px; }
+
+.dotgrid {
+  border: var(--hair);
+  border-radius: var(--radius);
+  background-color: rgba(22, 24, 26, 0.66);
+  background-image: radial-gradient(var(--steel-600) 1px, transparent 1px);
+  background-size: 9px 9px;
+  background-position: 14px 14px;
+  padding: 14px;
+}
+.flow { display: block; width: 100%; height: auto; }
+
+/* Construction lines: the drawing's scaffolding, not its content. */
+.flow-frame { stroke: var(--steel-600); stroke-width: 1; opacity: 0.5; }
+/* The wires that actually carry the pipeline. */
+.wire { stroke: var(--steel-500); stroke-width: 1; }
+
+.node circle { fill: var(--steel-950); stroke: var(--ink-dim); stroke-width: 1.4; }
+.node-live circle { stroke: var(--signal); }
+.node-live .node-core { fill: var(--signal); stroke: none; }
+
+.nlabel text {
+  font-family: var(--font-mono);
+  font-size: 8.5px;
+  letter-spacing: 0.14em;
+  fill: var(--ink-faint);
+}
+.nlabel .nlabel-live { fill: var(--ink-dim); }
+
+.hero-r figcaption {
+  margin-top: 12px;
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  color: var(--ink-faint);
+  text-align: center;
+}
+
+/* ---- KPI strip: equal cells, hairline rules between --------------------- */
+.kpis {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  border: var(--hair);
+  border-radius: var(--radius);
+  background: var(--steel-900);
+}
+.kpi {
+  padding: 16px 18px 18px;
+  border-left: var(--hair);
+  min-width: 0;
+}
+.kpi:first-child { border-left: 0; }
+
+.kpi-l {
+  margin: 0;
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+.kpi-n {
+  margin: 10px 0 0;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: clamp(26px, 2.4vw, 34px);
+  line-height: 1;
+  letter-spacing: -0.02em;
+  color: var(--ink);
+}
+.kpi-n.sig { color: var(--signal); }
+
+.kpi-bar {
+  display: block;
+  width: 46px;
+  height: 3px;
+  margin-top: 10px;
+  background: var(--steel-500);
+}
+.kpi-bar.sig { background: var(--signal); }
+
+.kpi-c {
+  margin: 12px 0 0;
+  font-size: 12px;
+  line-height: 1.48;
+  color: var(--ink-dim);
+}
+.kpi-c .figure { font-size: 12px; }
+
+/* =========================================================================
+   Footer
+   ========================================================================= */
+.ftr {
+  position: relative;
+  z-index: 1;
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 16px clamp(20px, 3.4vw, 48px) 18px;
+  margin-top: clamp(18px, 3vh, 40px);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  color: var(--ink-faint);
+}
+.ftr .sep { color: var(--steel-500); }
+
+/* =========================================================================
+   Narrower viewports. Below 1080 the hero stacks; the diagram stays, because
+   the diagram IS the explanation.
+   ========================================================================= */
+@media (max-width: 1180px) {
+  .kpi-c { font-size: 12px; }
+  .kpi { padding: 18px 16px 20px; }
+}
+
+@media (max-width: 1080px) {
+  .hero {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 36px;
+  }
+  .hero-r { max-width: 560px; }
+  .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .kpi:nth-child(3) { border-left: 0; }
+  .kpi:nth-child(n + 3) { border-top: var(--hair); }
+}
+
+@media (max-width: 900px) {
+  .tagline { display: none; }
+  .head { font-size: clamp(32px, 6.6vw, 44px); }
+  .lede { font-size: 14px; }
+}
+
+@media (max-width: 620px) {
+  .nav { gap: 12px; }
+  .nav-a { display: none; }
+  .pill { max-width: 150px; }
+  .kpis { grid-template-columns: minmax(0, 1fr); }
+  .kpi { border-left: 0; border-top: var(--hair); }
+  .kpi:first-child { border-top: 0; }
+  .cta, .ghost { flex: 1 1 100%; }
+}
+
+/* Reduced motion: theme.css already flattens transitions; scene.js renders a
+   single static frame instead of running a loop. Nothing else to do here. */

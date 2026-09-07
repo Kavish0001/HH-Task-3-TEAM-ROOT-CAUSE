@@ -116,10 +116,10 @@
       ctx.drawImage(img, 0, 0, w, h);
       if (bbox && bbox.length === 4) {
         var x = bbox[0] * k, y = bbox[1] * k, bw = bbox[2] * k, bh = bbox[3] * k;
-        ctx.lineWidth = 2; ctx.strokeStyle = "#00e5ff";
-        ctx.strokeRect(x, y, bw, bh);
+        ctx.lineWidth = 1; ctx.strokeStyle = "#00e5ff";
+        ctx.strokeRect(x + 0.5, y + 0.5, bw, bh);
         // corner ticks
-        ctx.lineWidth = 3;
+        ctx.lineWidth = 2;
         var t = Math.max(6, Math.min(bw, bh) * 0.18);
         [[x, y, 1, 1], [x + bw, y, -1, 1], [x, y + bh, 1, -1], [x + bw, y + bh, -1, -1]]
           .forEach(function (c) {
@@ -127,11 +127,11 @@
             ctx.moveTo(c[0] + c[2] * t, c[1]); ctx.lineTo(c[0], c[1]);
             ctx.lineTo(c[0], c[1] + c[3] * t); ctx.stroke();
           });
-        ctx.fillStyle = "rgba(0,229,255,0.85)";
-        ctx.fillRect(x, Math.max(0, y - 13), 46, 13);
-        ctx.fillStyle = "#04121a";
-        ctx.font = "9px ui-monospace, Consolas, monospace";
-        ctx.fillText("FACE 01", x + 3, Math.max(9, y - 3.5));
+        ctx.fillStyle = "#00e5ff";
+        ctx.fillRect(x, Math.max(0, y - 13), 52, 13);
+        ctx.fillStyle = "#041b21";
+        ctx.font = "500 9px 'JetBrains Mono', ui-monospace, Consolas, monospace";
+        ctx.fillText("FACE 01", x + 4, Math.max(9, y - 3.5));
       }
       wrap.classList.add("has");
     };
@@ -142,8 +142,8 @@
   /* ------------------------------------------------ stage 2 rows */
   function bar(sim, hit) {
     var pct = Math.max(2, Math.min(100, sim * 100));
-    return '<div class="bar"><i style="width:' + pct.toFixed(1) + '%"></i>' +
-      '<span>' + sim.toFixed(3) + '</span></div>';
+    return '<div class="bar"><i style="width:' + pct.toFixed(1) + '%"></i></div>' +
+      '<span class="score">' + sim.toFixed(3) + '</span>';
   }
   function esc(s) {
     return String(s === null || s === undefined ? "" : s)
@@ -187,7 +187,7 @@
         '<span class="badge">' + esc(r.platform) + '</span>' +
         bar(r.similarity, r.is_match) +
         '<div class="res-t"><a href="' + esc(r.post_url) + '" target="_blank" rel="noopener">' +
-        (r.is_best ? '★ ' : '') + esc(title) + '</a>' +
+        (r.is_best ? '<span class="best-tag">BEST</span>' : '') + esc(title) + '</a>' +
         '<small>' + esc(r.post_url) + '</small></div>';
       box.appendChild(row);
     });

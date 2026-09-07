@@ -21,6 +21,8 @@ import uuid
 from pathlib import Path
 from typing import Any, Dict, Optional
 
+from urllib.parse import quote
+
 from flask import (Flask, Response, abort, jsonify, render_template, request,
                    send_file, send_from_directory)
 
@@ -41,6 +43,19 @@ SAMPLES = [
 ]
 
 ALLOWED_EXT = {".jpg", ".jpeg", ".png", ".webp", ".bmp"}
+
+# The 3D props for the landing page background. The directory is gitignored,
+# so a fresh clone legitimately has none of these - every path below treats
+# "no archive at all" as an empty list, never as an error.
+def _archive_dir() -> Optional[Path]:
+    for name in ("archive", "Archive"):
+        candidate = ROOT / name
+        if candidate.is_dir():
+            return candidate.resolve()
+    return None
+
+
+ARCHIVE_DIR = _archive_dir()
 
 app = Flask(__name__, static_folder="static", template_folder="templates")
 app.config["MAX_CONTENT_LENGTH"] = 24 * 1024 * 1024
@@ -261,10 +276,61 @@ def _pipeline(run_id: str, image_path: Path, hint: str, backend: str,
 # --- Routes ---------------------------------------------------------------
 
 @app.route("/")
+def landing():
+    return render_template("landing.html",
+                           repo_url="https://github.com/Kavish0001/"
+                                    "HH-Task-3-TEAM-ROOT-CAUSE",
+                           default_threshold=config.MATCH_THRESHOLD)
+
+
+@app.route("/app")
 def index():
     return render_template("index.html", samples=SAMPLES,
                            default_threshold=config.MATCH_THRESHOLD,
                            default_max=config.MAX_CANDIDATES)
+
+
+# --- 3D background props --------------------------------------------------
+
+def _glb_names() -> list[str]:
+    if ARCHIVE_DIR is None:
+        return []
+    try:
+        return sorted(p.name for p in ARCHIVE_DIR.iterdir()
+                      if p.is_file() and p.suffix.lower() == ".glb")
+    except OSError:
+        return []
+
+
+@app.route("/api/scene")
+def api_scene():
+    return jsonify({"models": ["/scene/" + quote(n) for n in _glb_names()]})
+
+
+@app.route("/scene/<path:name>")
+def serve_scene(name: str):
+    # Only ever a plain *.glb basename. Anything carrying a separator, a
+    # parent-directory hop, a NUL, or a different extension is a 404 - not a
+    # 403, because the existence of the directory is not worth confirming.
+    if ARCHIVE_DIR is None:
+        abort(404)
+    if ("/" in name or "\\" in name or "\x00" in name
+            or name in (".", "..") or ".." in name.split("/")
+            or name != os.path.basename(name)
+            or not name.lower().endswith(".glb")
+            or len(name) <= 4):
+        abort(404)
+    target = (ARCHIVE_DIR / name)
+    # Belt and braces: the resolved path must still sit inside the archive.
+    try:
+        resolved = target.resolve()
+        resolved.relative_to(ARCHIVE_DIR)
+    except (OSError, ValueError):
+        abort(404)
+    if not resolved.is_file():
+        abort(404)
+    return send_from_directory(str(ARCHIVE_DIR), name,
+                               mimetype="model/gltf-binary")
 
 
 @app.route("/health")

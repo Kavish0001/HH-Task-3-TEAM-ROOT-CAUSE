@@ -1,0 +1,243 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FaceChain &middot; face &rarr; web &rarr; chain</title>
+<meta name="description" content="FaceChain encodes a face, searches the live web for a post carrying it, and anchors the finding on a blockchain so it can be re-verified and cannot be quietly edited.">
+<link rel="stylesheet" href="/static/theme.css">
+<link rel="stylesheet" href="/static/landing.css">
+</head>
+<body class="grid-ground">
+
+<!-- ── Layer 0: faint technical line art. Engineering-drawing furniture:
+     gears, hexagons, dimension rules. If you notice it, it is too strong. ── -->
+<svg class="linework" viewBox="0 0 1600 900" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+  <defs>
+    <g id="gear">
+      <circle r="120" fill="none"/>
+      <circle r="74" fill="none"/>
+      <circle r="30" fill="none"/>
+      <g id="teeth">
+        <rect x="-9" y="-140" width="18" height="30" fill="none"/>
+      </g>
+      <use href="#teeth" transform="rotate(30)"/>
+      <use href="#teeth" transform="rotate(60)"/>
+      <use href="#teeth" transform="rotate(90)"/>
+      <use href="#teeth" transform="rotate(120)"/>
+      <use href="#teeth" transform="rotate(150)"/>
+      <use href="#teeth" transform="rotate(180)"/>
+      <use href="#teeth" transform="rotate(210)"/>
+      <use href="#teeth" transform="rotate(240)"/>
+      <use href="#teeth" transform="rotate(270)"/>
+      <use href="#teeth" transform="rotate(300)"/>
+      <use href="#teeth" transform="rotate(330)"/>
+    </g>
+    <g id="hex">
+      <polygon points="34,0 17,29 -17,29 -34,0 -17,-29 17,-29" fill="none"/>
+      <circle r="13" fill="none"/>
+    </g>
+  </defs>
+  <g class="lw">
+    <use href="#gear" x="118" y="700"/>
+    <use href="#gear" x="1512" y="196" transform="scale(0.72) translate(590 76)"/>
+    <use href="#hex"  x="700"  y="118"/>
+    <use href="#hex"  x="1258" y="238"/>
+    <use href="#hex"  x="1050" y="806"/>
+    <path d="M62 96 V300 M62 640 V856"/>
+    <path d="M900 700 H1210"/>
+    <path d="M1330 84 V806"/>
+    <rect x="928" y="606" width="46" height="86"/>
+    <rect x="1002" y="628" width="24" height="64"/>
+    <rect x="1104" y="600" width="72" height="92"/>
+    <path d="M0 96 H1600" class="lw-hair"/>
+    <path d="M0 856 H1600" class="lw-hair"/>
+  </g>
+</svg>
+
+<!-- ── Layer 1: the GLB props. Transparent, inert, and entirely optional -
+     archive/ is gitignored, so a fresh clone renders nothing here. ── -->
+<canvas id="scene" aria-hidden="true"></canvas>
+<div class="scrim" aria-hidden="true"></div>
+
+<header class="hdr">
+  <a class="brand" href="/">
+    <span class="brand-icon" aria-hidden="true">
+      <svg viewBox="0 0 40 40"><defs>
+        <radialGradient id="bi" cx="34%" cy="28%">
+          <stop offset="0" stop-color="#dfe4e8"/>
+          <stop offset="0.55" stop-color="#7e858c"/>
+          <stop offset="1" stop-color="#20242a"/>
+        </radialGradient></defs>
+        <circle cx="20" cy="20" r="17" fill="url(#bi)"/>
+        <circle cx="20" cy="20" r="6.4" fill="#0d0d0d"/>
+        <circle cx="20" cy="20" r="2.6" fill="#00e5ff"/>
+      </svg>
+    </span>
+    <span class="brand-t">
+      <span class="wordmark">FaceChain</span>
+      <span class="brand-underline" aria-hidden="true"></span>
+    </span>
+  </a>
+  <span class="tagline mono">FACE TO PROOF</span>
+
+  <nav class="nav">
+    <span class="pill mono" id="chain-pill" title="backend reported by /health">
+      <i class="dot" id="chain-dot" aria-hidden="true"></i>
+      <span id="chain-text">CHAIN &middot; &hellip;</span>
+    </span>
+    <a class="nav-a mono" href="https://github.com/Kavish0001/HH-Task-3-TEAM-ROOT-CAUSE"
+       target="_blank" rel="noopener">GITHUB</a>
+    <a class="ghost-btn mono" href="/app">PIPELINE</a>
+  </nav>
+</header>
+
+<main class="wrap">
+
+  <section class="hero">
+
+    <div class="hero-l">
+      <p class="eyebrow">// HH GOA 2026 &mdash; TASK 3</p>
+
+      <h1 class="head">
+        A face, a post,<br>
+        and a proof that<br>
+        outlives the demo.
+      </h1>
+
+      <p class="lede">
+        FaceChain encodes a face into a 128-d vector, searches Mastodon,
+        Reddit, DuckDuckGo and Wikimedia for a live post carrying that same
+        face, then anchors the finding on-chain as a hash. The post URL is not
+        hardcoded. The match is not a filename comparison.
+      </p>
+
+      <div class="cta-row">
+        <a class="cta mono" href="/app">RUN THE PIPELINE</a>
+        <a class="ghost mono" href="https://github.com/Kavish0001/HH-Task-3-TEAM-ROOT-CAUSE"
+           target="_blank" rel="noopener">READ THE SOURCE</a>
+      </div>
+    </div>
+
+    <!-- The pipeline itself, as an engineering diagram on a dot matrix. -->
+    <figure class="hero-r" aria-label="Pipeline: face scan, then web and social search, then on-chain proof">
+      <div class="dotgrid">
+        <svg class="flow" viewBox="0 0 520 320" role="img"
+             aria-label="FACE SCAN to EMBEDDING to WEB / SOCIAL SEARCH to ON-CHAIN PROOF">
+          <g class="flow-frame" fill="none">
+            <path class="fx" d="M74 92 H446"/>
+            <path class="fx" d="M260 40 V60"/>
+            <path class="fx" d="M260 236 V276"/>
+            <path class="fx" d="M300 44 l32 32 l-32 32 l-32 -32 Z"/>
+          </g>
+
+          <g class="wire" fill="none">
+            <path d="M74 200 L260 92"/>
+            <path d="M260 92 V200"/>
+            <path d="M260 200 L446 92"/>
+            <path d="M74 200 H260"/>
+          </g>
+
+          <g class="node">
+            <circle cx="74"  cy="200" r="13"/>
+            <circle cx="260" cy="92"  r="13"/>
+            <circle cx="260" cy="200" r="13"/>
+          </g>
+
+          <g class="node node-live">
+            <circle cx="446" cy="92" r="13"/>
+            <circle cx="446" cy="92" r="4.6" class="node-core"/>
+          </g>
+
+          <g class="nlabel">
+            <text x="74"  y="230" text-anchor="middle">FACE SCAN</text>
+            <text x="260" y="122" text-anchor="middle">EMBEDDING</text>
+            <text x="260" y="230" text-anchor="middle">WEB / SOCIAL</text>
+            <text x="446" y="122" text-anchor="middle" class="nlabel-live">ON-CHAIN PROOF</text>
+          </g>
+        </svg>
+      </div>
+      <figcaption class="mono">FACE SCAN &rarr; WEB / SOCIAL SEARCH &rarr; ON-CHAIN PROOF</figcaption>
+    </figure>
+
+  </section>
+
+  <!-- Equal cells, 1px rules between. One accent bar, on the figure that
+       decides everything. -->
+  <section class="kpis" aria-label="What the pipeline actually does">
+
+    <div class="kpi">
+      <p class="kpi-l mono">01 &middot; FACE SCAN</p>
+      <p class="kpi-n">128-d</p>
+      <span class="kpi-bar"></span>
+      <p class="kpi-c">YuNet detects, SFace encodes. L2-normalised, so cosine
+        similarity is a plain dot product.</p>
+    </div>
+
+    <div class="kpi">
+      <p class="kpi-l mono">IDENTITY THRESHOLD</p>
+      <p class="kpi-n sig">{{ '%.3f'|format(default_threshold) }}</p>
+      <span class="kpi-bar sig"></span>
+      <p class="kpi-c">Cosine. The published SFace reference value &mdash; not a
+        number tuned until the demo passed.</p>
+    </div>
+
+    <div class="kpi">
+      <p class="kpi-l mono">02 &middot; LIVE PROVIDERS</p>
+      <p class="kpi-n">04</p>
+      <span class="kpi-bar"></span>
+      <p class="kpi-c">Mastodon, Reddit, DuckDuckGo, Wikimedia Commons. Every
+        candidate is downloaded, re-encoded and face-matched.</p>
+    </div>
+
+    <div class="kpi">
+      <p class="kpi-l mono">03 &middot; ON-CHAIN</p>
+      <p class="kpi-n">32 B</p>
+      <span class="kpi-bar"></span>
+      <p class="kpi-c"><span class="figure">FaceProofRegistry</span> on a local
+        Hardhat EVM, proof-of-work simchain fallback. Re-verified and
+        tamper-tested on every run.</p>
+    </div>
+
+  </section>
+</main>
+
+<footer class="ftr mono">
+  <span>MIT</span>
+  <span class="sep" aria-hidden="true">&middot;</span>
+  <span>Demo uses public figures and freely-licensed images only. Not for use
+    on private individuals.</span>
+</footer>
+
+<script type="importmap">
+{"imports":{
+  "three":"/static/vendor/three.module.min.js",
+  "three/addons/":"/static/vendor/",
+  "/static/utils/BufferGeometryUtils.js":"/static/vendor/BufferGeometryUtils.js"
+}}
+</script>
+<script type="module" src="/static/scene.js"></script>
+
+<script>
+/* The chain pill. One fetch, no dependencies; /health failing to answer must
+   leave the page intact, so the failure path just greys the dot. */
+(function () {
+  var txt = document.getElementById('chain-text');
+  var pill = document.getElementById('chain-pill');
+  fetch('/health', { headers: { accept: 'application/json' } })
+    .then(function (r) { return r.ok ? r.json() : Promise.reject(r.status); })
+    .then(function (h) {
+      var desc = String(h.chain_backend || 'unavailable');
+      pill.title = desc;
+      txt.textContent = desc.length > 42 ? desc.slice(0, 41) + '…' : desc;
+      if (h.chain_ok) pill.classList.add('ok');
+    })
+    .catch(function () {
+      txt.textContent = 'CHAIN · OFFLINE';
+      pill.title = '/health did not answer';
+    });
+})();
+</script>
+
+</body>
+</html>
