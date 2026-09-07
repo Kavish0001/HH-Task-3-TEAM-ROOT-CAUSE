@@ -2,7 +2,7 @@
 <div align="center">
 
 <img
-  src="https://capsule-render.vercel.app/api?type=waving&color=0:0d0d0d,55:2b2e33,100:ff0000&height=210&section=header&text=FaceChain&fontSize=80&fontColor=ffffff&fontAlignY=34&desc=Face%20Identification%20and%20Blockchain%20Verification%20Pipeline&descSize=17&descAlignY=54&animation=fadeIn"
+  src="https://capsule-render.vercel.app/api?type=waving&color=0:0d0d0d,50:0f3443,100:00e5ff&height=210&section=header&text=FaceChain&fontSize=80&fontColor=ffffff&fontAlignY=34&desc=Face%20Identification%20and%20Blockchain%20Verification%20Pipeline&descSize=17&descAlignY=54&animation=fadeIn"
   alt="FaceChain — Face Identification and Blockchain Verification Pipeline"
 />
 
@@ -10,7 +10,7 @@
 
 <a href="#-pipeline">
   <img
-    src="https://readme-typing-svg.demolab.com?font=Space+Mono&weight=700&size=20&pause=1200&color=FF0000&center=true&vCenter=true&width=780&lines=Face+scan+%E2%86%92+Web+search+%E2%86%92+On-chain+proof;A+real+search%2C+not+a+hardcoded+result;Tamper+a+byte%2C+the+chain+says+no"
+    src="https://readme-typing-svg.demolab.com?font=Space+Mono&weight=700&size=20&pause=1200&color=00E5FF&center=true&vCenter=true&width=780&lines=Face+scan+%E2%86%92+Web+search+%E2%86%92+On-chain+proof;A+real+search%2C+not+a+hardcoded+result;Tamper+a+byte%2C+the+chain+says+no"
     alt="Face scan to web search to on-chain proof"
   />
 </a>
@@ -32,19 +32,19 @@
 
 <br/>
 
-![Hackathon](https://img.shields.io/badge/HH_Goa_2026-Task_3-ff0000?style=for-the-badge&labelColor=0d0d0d)
+![Hackathon](https://img.shields.io/badge/HH_Goa_2026-Task_3-00e5ff?style=for-the-badge&labelColor=0d0d0d)
 ![Pipeline](https://img.shields.io/badge/pipeline-end--to--end-2b2e33?style=for-the-badge&labelColor=0d0d0d)
 ![Chain](https://img.shields.io/badge/chain-EVM_%2B_local-2b2e33?style=for-the-badge&labelColor=0d0d0d)
 
 <br/>
 
-**[Pipeline](#-pipeline)** · **[Blockchain](#-blockchain)** · **[Setup](#-setup)** · **[Demo](#-demo)** · **[Limitations](#%EF%B8%8F-known-limitations)** · **[Ethics](#-responsible-use)**
+**[Pipeline](#pipeline)** · **[Blockchain](#blockchain)** · **[Setup](#setup)** · **[Demo](#demo)** · **[Limitations](#known-limitations)** · **[Ethics](#responsible-use)**
 
 </div>
 
 ---
 
-## ⚡ The Point
+## The Point
 
 > **FaceChain — Face Identification and Blockchain Verification Pipeline**
 > _HH Goa 2026 · Task 3_
@@ -74,7 +74,7 @@ Nothing personal ever reaches the chain. The contract stores **hashes only** —
 
 ---
 
-## 🧬 Pipeline
+## Pipeline
 
 ### Stage 1 — Face identification
 
@@ -123,7 +123,7 @@ The `SearchReport` written to `out/` is a full audit trail: the queries issued, 
 
 ---
 
-## 🔗 Blockchain
+## Blockchain
 
 ### What gets anchored
 
@@ -187,7 +187,7 @@ authoritative values for your own run are always in `chain/deployment.json`.
 
 ---
 
-## 🚀 Setup
+## Setup
 
 **Prerequisites:** Python 3.10+. Node.js 18+ **only** for the full-EVM path.
 
@@ -277,9 +277,9 @@ python run_pipeline.py --verify out/proof-6a2513aa2c65.json --tamper
 
 ---
 
-## 🎬 Demo
+## Demo
 
-> 📹 **Screen recording:** _paste the link here before submitting_
+> **Screen recording:** _paste the link here before submitting_
 
 What the recording shows, in order:
 
@@ -307,7 +307,7 @@ The proof filename is printed in the Artifacts panel at the end of the pipeline 
 
 ---
 
-## 🧪 Evidence It Is Real
+## Evidence It Is Real
 
 A recorded run — `python run_pipeline.py --image samples/elon-musk.jpg --hint "Elon Musk"` — end to end in **63 s**:
 
@@ -332,7 +332,7 @@ appears anywhere in the source. Grep for them.
 
 ---
 
-## ⚠️ Known Limitations
+## Known Limitations
 
 Stated plainly, because a grader will find them anyway.
 
@@ -347,7 +347,7 @@ Stated plainly, because a grader will find them anyway.
 
 ---
 
-## 🛡 Responsible Use
+## Responsible Use
 
 Face search is not a neutral technology — it points at real people, and getting it wrong has consequences that a hackathon score does not capture.
 
@@ -359,7 +359,7 @@ Face search is not a neutral technology — it points at real people, and gettin
 
 ---
 
-## 📁 Project Structure
+## Project Structure
 
 ```text
 facechain/
@@ -390,7 +390,7 @@ facechain/
 
 ---
 
-## 📄 License
+## License
 
 [MIT](LICENSE) © 2026 Kavish Vyas. Sample images retain their own Commons licences — see [`samples/README.md`](samples/README.md).
 
@@ -400,10 +400,10 @@ facechain/
 
 **Built by [@Kavish0001](https://github.com/Kavish0001)**
 
-[![Repo](https://img.shields.io/badge/FaceChain-HH_Goa_2026_·_Task_3-ff0000?style=for-the-badge&logo=github&logoColor=white&labelColor=0d0d0d)](https://github.com/Kavish0001/HH-Task-3-TEAM-ROOT-CAUSE)
+[![Repo](https://img.shields.io/badge/FaceChain-HH_Goa_2026_·_Task_3-00e5ff?style=for-the-badge&logo=github&logoColor=white&labelColor=0d0d0d)](https://github.com/Kavish0001/HH-Task-3-TEAM-ROOT-CAUSE)
 
 <img
-  src="https://capsule-render.vercel.app/api?type=waving&color=0:ff0000,45:2b2e33,100:0d0d0d&height=140&section=footer"
+  src="https://capsule-render.vercel.app/api?type=waving&color=0:00e5ff,50:0f3443,100:0d0d0d&height=140&section=footer"
   alt=""
 />
 
