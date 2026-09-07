@@ -680,7 +680,11 @@ def _search_ddg_images(query: str, limit: int = 25) -> List[Candidate]:
                 image_url=image_url,
                 title=(row.get("title") or "")[:300],
                 query=query,
-                discovered_via="reverse-image-search",
+                # Keyword image search, NOT reverse image search: we send words
+                # and get pictures back. The face embedding is what decides a
+                # match. This string is anchored on chain, so it must not
+                # overclaim how the candidate was found.
+                discovered_via="keyword-image-search",
                 metadata={
                     "width": row.get("width"),
                     "height": row.get("height"),
