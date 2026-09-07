@@ -42,7 +42,28 @@ from facechain.types import FaceProfile, PostMatch, SearchReport
 ProgressFn = Callable[[str], None]
 
 # Providers, in the order they are fanned out.
-ALL_PROVIDERS: List[str] = ["reddit", "ddg_images", "wikimedia"]
+ALL_PROVIDERS: List[str] = ["reddit", "mastodon", "ddg_images", "wikimedia"]
+
+# Platforms that count as "social media" for the headline result. The task is
+# to surface a social-media post, so a social hit wins best_match even when a
+# news-site portrait scores marginally higher; the full ranking is preserved in
+# SearchReport.matches either way.
+SOCIAL_PLATFORMS = {"mastodon", "reddit"}
+SOCIAL_PROVIDERS = {"reddit", "mastodon"}
+
+# Mastodon instances whose public (no-auth) API we poll for tagged posts.
+MASTODON_INSTANCES: List[str] = [
+    "https://mastodon.social",
+    "https://mstdn.social",
+    "https://fosstodon.org",
+]
+
+# Max candidates taken from one provider for one query.
+PER_PROVIDER_CAP = 20
+
+# Notes raised by providers that are not exceptions (e.g. a blocked API).
+# Drained into SearchReport.notes by harvest_candidates().
+_PROVIDER_NOTES: List[str] = []
 
 # Subreddits that reliably carry people photos; searched in addition to
 # the site-wide /search.json endpoint.
@@ -393,11 +414,104 @@ def _search_reddit(query: str, limit: int = 25) -> List[Candidate]:
         if not reachable:
             # Latch the block so later queries skip four dead round-trips.
             _REDDIT_JSON_BLOCKED = True
+            _PROVIDER_NOTES.append(
+                "reddit: public JSON API returned 403 (unauthenticated access is "
+                "blocked); fell back to a public redlib front-end, permalinks and "
+                "i.redd.it image URLs are still genuine reddit URLs"
+            )
             _log_debug("reddit JSON API blocked; using mirror fallback")
 
     if not results:
         results = _search_reddit_mirror(query)
     return results
+
+
+_RE_TAGS = re.compile(r"<[^>]+>")
+
+
+def _mastodon_tag(query: str) -> str:
+    """'Elon Musk' -> 'elonmusk' (Mastodon hashtags are alphanumeric only)."""
+    return re.sub(r"[^0-9a-z]+", "", query.lower())
+
+
+def _mastodon_status_to_candidates(
+    status: Dict[str, Any], query: str, instance: str
+) -> List[Candidate]:
+    """One status can carry several image attachments; keep them all."""
+    post_url = status.get("url") or status.get("uri") or ""
+    if not post_url:
+        return []
+    account = status.get("account") or {}
+    text = html.unescape(_RE_TAGS.sub(" ", status.get("content") or ""))
+    text = re.sub(r"\s+", " ", text).strip()[:200]
+
+    out: List[Candidate] = []
+    for media in status.get("media_attachments") or []:
+        if media.get("type") != "image":
+            continue
+        image_url = media.get("url") or media.get("remote_url") or ""
+        if not image_url:
+            continue
+        out.append(
+            Candidate(
+                platform="mastodon",
+                post_url=post_url,
+                image_url=image_url,
+                title=text,
+                author="@" + str(account.get("acct") or ""),
+                posted_at=str(status.get("created_at") or ""),
+                query=query,
+                discovered_via="social-search",
+                metadata={
+                    "instance": instance,
+                    "status_id": status.get("id"),
+                    "description": (media.get("description") or "")[:200],
+                    "favourites": status.get("favourites_count"),
+                },
+            )
+        )
+    return out
+
+
+def _search_mastodon(query: str, limit: int = 40) -> List[Candidate]:
+    """Mastodon's public API: no auth, no key, real social posts with media."""
+    tag = _mastodon_tag(query)
+    out: List[Candidate] = []
+    if not tag:
+        return out
+
+    for instance in MASTODON_INSTANCES:
+        resp = _get(
+            f"{instance}/api/v1/timelines/tag/{tag}",
+            params={"limit": limit, "only_media": "true"},
+            retries=0,
+        )
+        if resp is None:
+            continue
+        try:
+            statuses = resp.json()
+        except ValueError:
+            continue
+        if not isinstance(statuses, list):
+            continue
+        for status in statuses:
+            out.extend(_mastodon_status_to_candidates(status, query, instance))
+
+    # Full-text search is token-gated on most instances; try it, ignore failures.
+    for instance in MASTODON_INSTANCES[:1]:
+        try:
+            resp = _get(
+                f"{instance}/api/v2/search",
+                params={"q": query, "type": "statuses", "limit": 20},
+                retries=0,
+            )
+            if resp is None:
+                continue
+            for status in (resp.json() or {}).get("statuses") or []:
+                out.extend(_mastodon_status_to_candidates(status, query, instance))
+        except Exception:  # noqa: BLE001
+            continue
+    return out
 
 
 def _ddgs_class():
@@ -510,6 +624,7 @@ def _search_wikimedia(query: str, limit: int = 20) -> List[Candidate]:
 
 _PROVIDER_FNS: Dict[str, Callable[[str], List[Candidate]]] = {
     "reddit": _search_reddit,
+    "mastodon": _search_mastodon,
     "ddg_images": _search_ddg_images,
     "wikimedia": _search_wikimedia,
 }
@@ -545,7 +660,9 @@ def harvest_candidates(
                 notes.append(f"{name} failed on '{query}': {type(exc).__name__}: {exc}")
                 continue
             fresh = 0
-            for cand in rows:
+            # Cap per provider per query so one chatty provider cannot crowd
+            # the others out of the candidate pool.
+            for cand in rows[:PER_PROVIDER_CAP]:
                 key = cand.image_url.split("?")[0]
                 if key in seen_urls:
                     continue
@@ -557,8 +674,34 @@ def harvest_candidates(
             if progress:
                 progress(f"{name}: '{query}' -> {len(rows)} hits ({fresh} new)")
             if limit is not None and len(out) >= limit:
+                notes.extend(_drain_provider_notes())
                 return out[:limit], working, notes
+    notes.extend(_drain_provider_notes())
     return out, working, notes
+
+
+def _interleave_by_platform(candidates: Sequence[Candidate]) -> List[Candidate]:
+    """Round-robin candidates across platforms.
+
+    Without this the first provider in the list monopolises the examination
+    budget and the early-stop rule never reaches the other platforms.
+    """
+    buckets: Dict[str, List[Candidate]] = {}
+    for cand in candidates:
+        buckets.setdefault(cand.platform, []).append(cand)
+    out: List[Candidate] = []
+    while buckets:
+        for key in list(buckets):
+            out.append(buckets[key].pop(0))
+            if not buckets[key]:
+                del buckets[key]
+    return out
+
+
+def _drain_provider_notes() -> List[str]:
+    """Take non-fatal provider notes (blocked APIs, fallbacks) for the report."""
+    drained, _PROVIDER_NOTES[:] = list(dict.fromkeys(_PROVIDER_NOTES)), []
+    return drained
 
 
 # --------------------------------------------------------------------------
@@ -660,6 +803,7 @@ def find_matching_post(
     report.providers = working
     report.notes.extend(notes)
     report.candidates_seen = len(candidates)
+    candidates = _interleave_by_platform(candidates)
     say(f"harvested {len(candidates)} candidates from {len(working)} providers")
 
     if not candidates:
@@ -679,6 +823,9 @@ def find_matching_post(
     scored: List[PostMatch] = []
     examined = 0
     have_match = False
+    have_social_match = False
+    # If no social provider ran there is nothing to hold out for.
+    social_in_play = bool(SOCIAL_PROVIDERS & set(working))
 
     # Download in parallel, encode serially as results land.
     with concurrent.futures.ThreadPoolExecutor(max_workers=8) as pool:
@@ -746,9 +893,14 @@ def find_matching_post(
                 )
                 if match.is_match:
                     have_match = True
+                    if match.platform in SOCIAL_PLATFORMS:
+                        have_social_match = True
 
-            # Fast demo, but only after real work: match found + >= 12 examined.
-            if have_match and examined >= 12:
+            # Fast demo, but only after real work: >= 12 candidates examined and
+            # a match in hand. Never stop on a non-social match while a social
+            # provider is still in play - the deliverable is a social-media post.
+            enough = have_social_match or (have_match and not social_in_play)
+            if enough and examined >= 12:
                 report.notes.append(
                     f"early stop: match found after examining {examined} candidates"
                 )
@@ -761,7 +913,30 @@ def find_matching_post(
         for m in scored
         if not m.is_match and m.similarity >= config.NEAR_MISS_THRESHOLD
     ][:5]
-    report.best_match = report.matches[0] if report.matches else None
+    # best_match prefers a social-media post; `matches` keeps the full ranking.
+    social = [m for m in report.matches if m.platform in SOCIAL_PLATFORMS]
+    if social:
+        report.best_match = social[0]
+        top = report.matches[0]
+        note = (
+            f"best match: highest-scoring social-media post "
+            f"({report.best_match.platform}, {report.best_match.similarity:.4f})"
+        )
+        if top is not report.best_match:
+            note += (
+                f"; a higher-scoring non-social candidate was available at "
+                f"{top.similarity:.4f} ({top.platform})"
+            )
+        report.notes.append(note)
+    elif report.matches:
+        report.best_match = report.matches[0]
+        report.notes.append(
+            f"best match: no social-media post cleared the threshold; using the "
+            f"highest-scoring candidate overall ({report.best_match.platform}, "
+            f"{report.best_match.similarity:.4f})"
+        )
+    else:
+        report.best_match = None
     report.elapsed_seconds = round(time.monotonic() - started, 3)
 
     if report.best_match is None:

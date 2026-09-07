@@ -175,8 +175,10 @@ From the recorded demo run against a local Hardhat node (chain id `31337`):
 | | |
 | --- | --- |
 | `FaceProofRegistry` | `0x5FbDB2315678afecb367f032d93F642f64180aa3` |
-| Anchor transaction | `0x55d8addf5b43a699f88a82baa2cbe3691b959442e61d50b05cc848fa840804da` |
-| Block / gas | `3` / `96,738` |
+| Anchor transaction | `0x461a981bf34a4dba47ff0a5d3ebdd7ac89f0765c89196fff2f920f7f36e20e4a` |
+| Block / gas | `5` / `96,738` |
+| Record id | `0xf8fe649232dde7c08d122505aa731ee449161048b8ea66b5b52205a50b157a70` |
+| Record hash | `0x12a3067466b4679c9329b8a74c6afe68810284d9abadcce5f926c4a1be10ed5c` |
 | Submitter | `0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266` |
 
 Hardhat allocates deterministic addresses from a fixed mnemonic, so a fresh
@@ -287,6 +289,46 @@ What the recording shows, in order:
 - **Re-verification** — the record is read from disk, re-hashed, checked against `verify()` → `true`.
 - **The tamper** — one byte of the record is edited by hand. Same command, same chain, `verified: false`. The chain never moved.
 - **The fallback** — the Hardhat node is killed and the same run repeats on `simchain`, proof-of-work blocks and all, with identical hashes.
+
+The exact sequence, four commands:
+
+```bash
+# terminal 1 - the chain
+cd chain && npx hardhat node
+
+# terminal 2
+npm --prefix chain run deploy                    # deploy FaceProofRegistry
+python run_pipeline.py --image samples/elon-musk.jpg --hint "Elon Musk"
+python run_pipeline.py --verify out/proof-<id>.json            # -> VERIFIED
+python run_pipeline.py --verify out/proof-<id>.json --tamper   # -> TAMPER DETECTED
+```
+
+The proof filename is printed in the Artifacts panel at the end of the pipeline run.
+
+---
+
+## 🧪 Evidence It Is Real
+
+A recorded run — `python run_pipeline.py --image samples/elon-musk.jpg --hint "Elon Musk"` — end to end in **63 s**:
+
+```text
+STAGE 1  face detected, conf 0.852, bbox [282,233,478,622], 128-d embedding
+STAGE 2  120 candidates harvested from 4 providers · 16 downloaded · 13 with faces · 12 above threshold
+         best match  mastodon  cosine 0.7438
+STAGE 3  anchored  evm-hardhat  block 5  gas 96,738
+         verify    computed == on-chain   -> VERIFIED
+         tamper    one field flipped      -> MISMATCH, rejected
+```
+
+**The negative control is the part worth checking.** Searching `samples/lionel-messi.jpg`
+against the *Elon Musk* candidate pool: 60 candidates seen, 32 downloaded, 24 faces
+encoded, **0 matches and 0 near misses**, best score **0.185** against a 0.363 threshold.
+The matcher is not simply accepting whatever the search layer hands it — a wrong face
+scores a third of what a right face scores.
+
+Twelve candidates cleared the threshold in the run above, spread across `tekedia.com`,
+`ibtimes.com`, `indianexpress.com` and Mastodon, scoring 0.41 to 0.82. None of those URLs
+appears anywhere in the source. Grep for them.
 
 ---
 
