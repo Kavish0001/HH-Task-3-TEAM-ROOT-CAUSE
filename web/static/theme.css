@@ -1,0 +1,191 @@
+/* ===========================================================================
+   FaceChain - Brushed Steel, after dark
+   ===========================================================================
+
+   The same discipline as the PayZ house style, inverted for a dark ground and
+   re-keyed from red to cyan.
+
+   Four surfaces, three typefaces, one accent used sparingly. Cyan carries
+   meaning precisely because almost nothing else uses it: the active stage, a
+   similarity bar that cleared the threshold, the verified verdict, the run
+   button. Everything else separates by weight, border and fill, not by hue.
+   Red is reserved strictly for failure and for the tamper verdict.
+
+   Fonts are self-hosted. A CDN request is one more thing that can fail on
+   conference wifi mid-demo.
+   ========================================================================= */
+
+/* ---- Space Grotesk: headings, numerals, wordmark ------------------------ */
+@font-face {
+  font-family: 'Space Grotesk';
+  font-style: normal; font-weight: 400; font-display: swap;
+  src: url('/static/fonts/SpaceGrotesk-400.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Space Grotesk';
+  font-style: normal; font-weight: 500; font-display: swap;
+  src: url('/static/fonts/SpaceGrotesk-500.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Space Grotesk';
+  font-style: normal; font-weight: 700; font-display: swap;
+  src: url('/static/fonts/SpaceGrotesk-700.woff2') format('woff2');
+}
+
+/* ---- Inter: body text --------------------------------------------------- */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal; font-weight: 400; font-display: swap;
+  src: url('/static/fonts/Inter-400.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Inter';
+  font-style: normal; font-weight: 500; font-display: swap;
+  src: url('/static/fonts/Inter-500.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Inter';
+  font-style: normal; font-weight: 600; font-display: swap;
+  src: url('/static/fonts/Inter-600.woff2') format('woff2');
+}
+
+/* ---- JetBrains Mono: labels, eyebrows, every figure --------------------- */
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal; font-weight: 400; font-display: swap;
+  src: url('/static/fonts/JetBrainsMono-400.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal; font-weight: 500; font-display: swap;
+  src: url('/static/fonts/JetBrainsMono-500.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal; font-weight: 700; font-display: swap;
+  src: url('/static/fonts/JetBrainsMono-700.woff2') format('woff2');
+}
+
+:root {
+  /* ---- Typefaces ------------------------------------------------------- */
+  --font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-display: 'Space Grotesk', 'Inter', ui-sans-serif, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, 'Cascadia Code', Consolas, monospace;
+
+  /* ---- The palette. Four surfaces, and nothing else. ------------------- */
+
+  /** Page ground. */
+  --steel-950: #0d0d0d;
+  /** Card and panel fill. */
+  --steel-900: #16181a;
+  /** Raised fill: inputs, table stripes, the log pane. */
+  --steel-800: #1d2023;
+  /** Borders, dividers, the dotted grid. */
+  --steel-600: #2b2e33;
+  /** Hairline on a raised surface. */
+  --steel-500: #3a3f45;
+
+  /* ---- Ink ------------------------------------------------------------- */
+  --ink: #e8eaec;
+  --ink-dim: #949aa1;
+  --ink-faint: #6b7178;
+
+  /* ---- The one accent -------------------------------------------------- */
+  --signal: #00e5ff;
+  --signal-dim: #0f3443;
+  --signal-ink: #041b21;
+
+  /* ---- Failure. Nothing else may use this. ----------------------------- */
+  --alert: #ff4d4f;
+  --alert-dim: #3a1416;
+
+  /* ---- Geometry -------------------------------------------------------- */
+  --radius: 3px;
+  --hair: 1px solid var(--steel-600);
+  --gap: 18px;
+}
+
+/* ---------------------------------------------------------------------------
+   Brushed metal. A very fine repeating gradient, almost subliminal - it reads
+   as a machined surface rather than as stripes. Used on the page ground and on
+   the header, never on a card that carries data.
+   ------------------------------------------------------------------------ */
+.brushed {
+  background-image:
+    repeating-linear-gradient(
+      90deg,
+      rgba(255, 255, 255, 0.014) 0px,
+      rgba(255, 255, 255, 0.014) 1px,
+      transparent 1px,
+      transparent 3px
+    );
+}
+
+/* A dotted machinist's grid, for the page ground behind the 3D scene. */
+.grid-ground {
+  background-color: var(--steel-950);
+  background-image: radial-gradient(var(--steel-600) 1px, transparent 1px);
+  background-size: 26px 26px;
+}
+
+/* ---- Primitives --------------------------------------------------------- */
+
+.eyebrow {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+
+.mono { font-family: var(--font-mono); }
+
+/* A value that came off the chain or out of a model: never wraps mid-token. */
+.figure {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--ink);
+  word-break: break-all;
+}
+
+.rule {
+  height: 1px;
+  background: var(--steel-600);
+  border: 0;
+}
+
+/* The accent underline that marks the active thing. 2px, cyan, nothing else
+   in the interface is allowed to look like this. */
+.marker {
+  height: 2px;
+  background: var(--signal);
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+
+::selection { background: var(--signal); color: var(--signal-ink); }
+
+:focus-visible {
+  outline: 2px solid var(--signal);
+  outline-offset: 2px;
+}
+
+/* Scrollbars, so the panes do not sprout a bright OS-default bar. */
+* { scrollbar-width: thin; scrollbar-color: var(--steel-600) transparent; }
+*::-webkit-scrollbar { width: 9px; height: 9px; }
+*::-webkit-scrollbar-track { background: transparent; }
+*::-webkit-scrollbar-thumb {
+  background: var(--steel-600);
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+*::-webkit-scrollbar-thumb:hover { background: var(--steel-500); background-clip: content-box; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
