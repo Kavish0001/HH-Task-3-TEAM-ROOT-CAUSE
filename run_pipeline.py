@@ -221,6 +221,28 @@ def stage_chain(record: Dict[str, Any], backend: str) -> Dict[str, Any]:
     }
 
 
+# --- Conclusion PDF ------------------------------------------------------
+
+def write_conclusion_pdf(run: Dict[str, Any], record_id: Optional[str] = None) -> Optional[Path]:
+    """Render the human-readable conclusion. Never fatal: a PDF failure is a
+    warning, not a pipeline failure."""
+    try:
+        from datetime import datetime, timezone
+
+        from facechain.report_pdf import build_conclusion
+
+        if record_id:
+            name = "conclusion-" + record_id[2:14] + ".pdf"
+        else:
+            name = "conclusion-" + datetime.now(timezone.utc).strftime(
+                "%Y%m%dT%H%M%SZ") + ".pdf"
+        return build_conclusion(run, config.OUT_DIR / name)
+    except Exception as exc:  # pragma: no cover - reporting must never break a run
+        report.warn("conclusion PDF was not written (%s: %s)"
+                    % (type(exc).__name__, exc))
+        return None
+
+
 # --- Verify-only mode ----------------------------------------------------
 
 def verify_only(proof_path: str, tamper: bool, backend: str) -> int:
@@ -298,6 +320,10 @@ def main(argv: Optional[List[str]] = None) -> int:
                     help="re-verify a saved proof against the chain and exit")
     ap.add_argument("--tamper", action="store_true",
                     help="with --verify: alter the evidence first, expect rejection")
+    ap.add_argument("--pdf", dest="pdf", action="store_true", default=True,
+                    help="write the prose conclusion report to out/ (default)")
+    ap.add_argument("--no-pdf", dest="pdf", action="store_false",
+                    help="skip the conclusion PDF")
     args = ap.parse_args(argv)
 
     if args.verify:
@@ -317,11 +343,18 @@ def main(argv: Optional[List[str]] = None) -> int:
         report.bad("pipeline stopped: nothing to anchor without a verified match")
         report.step("try a different --hint, raise --max-candidates, "
                     "or lower --threshold")
-        report.save_run({
+        no_match_run = {
             "status": "no-match",
             "face": profile.as_dict(),
             "search": search.as_dict(),
-        })
+        }
+        run_path = report.save_run(no_match_run)
+        artifacts = {"full run log": str(run_path)}
+        if args.pdf:
+            pdf_path = write_conclusion_pdf(no_match_run)
+            if pdf_path:
+                artifacts["conclusion (PDF)"] = str(pdf_path)
+        report.kv_table("Artifacts", artifacts)
         return 2
 
     record = build_record(profile, search.best_match, search)
@@ -333,23 +366,31 @@ def main(argv: Optional[List[str]] = None) -> int:
         config.OUT_DIR / ("proof-" + rid[2:14] + ".json"),
         {"record": record, "receipt": chain_out["receipt"],
          "canonical": chainmod.canonical_json(record)})
-    run_path = report.save_run({
+    run_payload = {
         "status": "ok",
         "elapsed_seconds": round(time.time() - started, 2),
         "face": profile.as_dict(),
         "search": search.as_dict(),
         "record": record,
         "chain": chain_out,
-    })
+    }
+    run_path = report.save_run(run_payload)
 
     report.rule("done")
-    report.kv_table("Artifacts", {
+    artifacts = {
         "proof (re-verifiable)": str(proof_path),
         "full run log": str(run_path),
+    }
+    if args.pdf:
+        pdf_path = write_conclusion_pdf(run_payload, rid)
+        if pdf_path:
+            artifacts["conclusion (PDF)"] = str(pdf_path)
+    artifacts.update({
         "re-verify with": "python run_pipeline.py --verify %s" % proof_path,
         "prove tamper-evidence": "python run_pipeline.py --verify %s --tamper" % proof_path,
         "total time": "%.1fs" % (time.time() - started),
     })
+    report.kv_table("Artifacts", artifacts)
     return 0
 
 

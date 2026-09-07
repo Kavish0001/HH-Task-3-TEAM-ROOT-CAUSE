@@ -14,6 +14,9 @@ ddgs>=9.0
 web3>=8.0        # v8 API: signed.raw_transaction is snake_case
 eth-account>=0.14
 
+# --- Conclusion report (PDF) ---
+reportlab>=4.0
+
 # --- CLI output ---
 rich>=13.0
 
