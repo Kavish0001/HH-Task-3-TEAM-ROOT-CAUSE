@@ -16,3 +16,6 @@ eth-account>=0.14
 
 # --- CLI output ---
 rich>=13.0
+
+# --- Optional: local web UI (python web/app.py) ---
+Flask>=3.0

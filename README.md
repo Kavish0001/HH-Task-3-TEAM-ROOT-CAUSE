@@ -193,7 +193,7 @@ authoritative values for your own run are always in `chain/deployment.json`.
 
 ```bash
 git clone https://github.com/Kavish0001/HH-Task-3-TEAM-ROOT-CAUSE.git
-cd facechain
+cd HH-Task-3-TEAM-ROOT-CAUSE
 
 python -m venv .venv
 .venv\Scripts\activate                   # Windows
@@ -234,6 +234,19 @@ python run_pipeline.py --image samples/elon-musk.jpg --hint "Elon Musk" --chain 
 ```
 
 `npm run deploy` prints the contract address and writes `chain/deployment.json` with the address **and the full ABI**, so the Python client needs no Node tooling at runtime.
+
+### Path D - the web UI
+
+The CLI is the reference implementation; the browser view is the same pipeline with a face on it. No build step, no npm - Flask plus one HTML file.
+
+```bash
+python web/app.py
+# -> http://127.0.0.1:5000
+```
+
+Pick one of the bundled samples or drop in your own face, set the hint, hit **RUN PIPELINE**, and the three stages fill in live over server-sent events: the detected bounding box drawn over your image, candidates streaming in with their similarity bars as they are downloaded and encoded, then the canonical JSON, the anchor receipt, the verification, and the tamper test. Every post URL is a real clickable link.
+
+It calls exactly the same `facechain` functions as `run_pipeline.py` - `scan_face`, `find_matching_post`, `ChainClient.anchor`, `ChainClient.verify` - so there is no second implementation to drift.
 
 ### Path C — re-verify and tamper
 
@@ -363,6 +376,7 @@ Face search is not a neutral technology — it points at real people, and gettin
 
 ```text
 facechain/
+├─ web/                      # optional Flask UI over the same pipeline
 ├─ run_pipeline.py            # CLI — orchestrates the three stages
 ├─ requirements.txt
 │
