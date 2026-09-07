@@ -12,7 +12,6 @@ from __future__ import annotations
 
 import json
 import os
-import queue
 import re
 import sys
 import threading
@@ -57,19 +56,45 @@ _CAND_RE = re.compile(r"^\[(\d+)/(\d+)\]\s+(\S+)\s+sim=([0-9.]+)\s*(MATCH)?\s*$"
 
 
 class Emitter:
-    """Push-only view of a run's event queue."""
+    """Append-only event log for one run.
 
-    def __init__(self, q: "queue.Queue[Optional[Dict[str, Any]]]") -> None:
-        self.q = q
+    Events are kept (not consumed) so a reconnecting or duplicated SSE client
+    replays the whole run instead of seeing a random half of it.
+    """
+
+    def __init__(self) -> None:
+        self.events: list[Dict[str, Any]] = []
+        self.cond = threading.Condition()
+        self.closed = False
 
     def emit(self, kind: str, **data: Any) -> None:
-        self.q.put({"type": kind, "data": data})
+        with self.cond:
+            self.events.append({"type": kind, "data": data})
+            self.cond.notify_all()
 
     def log(self, msg: str) -> None:
         self.emit("log", message=str(msg))
 
     def close(self) -> None:
-        self.q.put(None)
+        with self.cond:
+            self.closed = True
+            self.cond.notify_all()
+
+    def follow(self, timeout: float = 10.0):
+        """Yield every event from the start, then block for new ones."""
+        index = 0
+        while True:
+            with self.cond:
+                while index >= len(self.events) and not self.closed:
+                    self.cond.wait(timeout)
+                if index >= len(self.events) and self.closed:
+                    return
+                batch = self.events[index:]
+                index = len(self.events)
+            for ev in batch:
+                yield ev
+                if ev["type"] == "done":
+                    return
 
 
 def _active_run() -> Optional[str]:
@@ -338,11 +363,9 @@ def api_run():
     max_candidates = max(1, min(200, max_candidates))
     threshold = max(0.0, min(1.0, threshold))
 
-    q: "queue.Queue[Optional[Dict[str, Any]]]" = queue.Queue()
     run = {
         "id": run_id,
-        "queue": q,
-        "emitter": Emitter(q),
+        "emitter": Emitter(),
         "image_path": str(image_path),
         "finished": False,
         "created": time.time(),
@@ -376,18 +399,11 @@ def api_stream(run_id: str):
     run = _RUNS.get(run_id)
     if not run:
         abort(404)
-    q = run["queue"]
+    em: Emitter = run["emitter"]
 
     def gen():
         yield "retry: 5000\n\n"
-        while True:
-            try:
-                item = q.get(timeout=15)
-            except queue.Empty:
-                yield ": keep-alive\n\n"
-                continue
-            if item is None:
-                break
+        for item in em.follow():
             yield "data: " + json.dumps(item, default=str) + "\n\n"
 
     return Response(gen(), mimetype="text/event-stream", headers={
